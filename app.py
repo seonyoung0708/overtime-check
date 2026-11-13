@@ -8,10 +8,6 @@ import base64
 # 1. 페이지 설정 (브라우저 탭에 표시될 이름)
 st.set_page_config(page_title="COSMAX PET 연장근무 상세조회", page_icon="🐾")
 
-# 2. 앱 상단 타이틀
-st.title("🐾 COSMAX PET 연장근무 상세조회")
-st.markdown("---") # 구분선
-
 # 2. 스타일 설정
 st.markdown("""
 <style>

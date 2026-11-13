@@ -1,14 +1,14 @@
 import streamlit as st
 import pandas as pd
-import os
-import re
-import base64
-import datetime
-import calendar
-import holidays  # 💡 2050년까지 공휴일 자동 계산을 위한 라이브러리 추가!
+from datetime import datetime
+import holidays
 
-# 1. 페이지 기본 설정
-st.set_page_config(page_title="코스맥스펫 연장근무 조회", page_icon="⏰", layout="wide")
+# 1. 페이지 설정 (브라우저 탭에 표시될 이름)
+st.set_page_config(page_title="COSMAX PET 연장근무 체크", page_icon="🐾")
+
+# 2. 앱 상단 타이틀
+st.title("🐾 COSMAX PET 연장근무 체크 시스템")
+st.markdown("---") # 구분선
 
 # 2. 스타일 설정
 st.markdown("""

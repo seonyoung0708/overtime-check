@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import holidays
+import os        
+import base64  
 
 # 1. 페이지 설정 (브라우저 탭에 표시될 이름)
 st.set_page_config(page_title="COSMAX PET 연장근무 체크", page_icon="🐾")

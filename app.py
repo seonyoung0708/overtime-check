@@ -6,10 +6,10 @@ import os
 import base64  
 
 # 1. 페이지 설정 (브라우저 탭에 표시될 이름)
-st.set_page_config(page_title="COSMAX PET 연장근무 체크", page_icon="🐾")
+st.set_page_config(page_title="COSMAX PET 연장근무 상세조회", page_icon="🐾")
 
 # 2. 앱 상단 타이틀
-st.title("🐾 COSMAX PET 연장근무 체크 시스템")
+st.title("🐾 COSMAX PET 연장근무 상세조회")
 st.markdown("---") # 구분선
 
 # 2. 스타일 설정
@@ -50,8 +50,7 @@ logo_html = "<span style='font-size: 2.0rem; vertical-align: middle; margin-righ
 if os.path.exists("logo.png"):
     with open("logo.png", "rb") as f:
         b64 = base64.b64encode(f.read()).decode()
-        logo_html = f"<img src='data:image/png;base64,{b64}' style='height: 55px; vertical-align: middle; margin-right: 12px; padding-bottom: 5px;'>"
-
+        
 st.markdown(f"<h3>{logo_html}코스맥스펫(주)</h3>", unsafe_allow_html=True)
 st.markdown("<h1>⏰ 개인별 연장근무 상세 조회</h1>", unsafe_allow_html=True)
 st.markdown("<br><br>", unsafe_allow_html=True)

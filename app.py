@@ -211,24 +211,33 @@ else:
                                 m_df = year_data[year_data['월'] == m_num].copy()
                                 worked_dates = m_df[date_col].dt.date.unique().tolist()
                                 
-                                # ★ 핵심: 동일 행에 점심/조기출근이 적혀있으면, 연장/야간/휴일 등 모든 추가수당 시간을 싹 비워버림 (강력한 뻥튀기 차단!) ★
-                                over_cols = ['연장시간', '야간연장근무', '휴일근무', '휴일연장근무', '휴일야간연장근무', '야간근무']
-                                
+                                # ★ 핵심: 연장시간에서 야간연장, 조기출근, 점심근무 중복값 완벽하게 빼기! ★
                                 for idx in m_df.index:
-                                    # 1. 휴일이면 '연장시간' 칸 비우기 (휴일은 휴일근무로만 들어가니까)
                                     if m_df.at[idx, '휴일여부']:
                                         if '연장시간' in m_df.columns:
                                             m_df.at[idx, '연장시간'] = None
+                                    else:
+                                        if '연장시간' in m_df.columns:
+                                            # 원래 적힌 연장시간
+                                            ot = pd.to_numeric(m_df.at[idx, '연장시간'], errors='coerce')
                                             
-                                    # 2. 점심근무나 조기출근이 적혀있는 줄이라면?
-                                    early = pd.to_numeric(m_df.at[idx, '조기출근'], errors='coerce') if '조기출근' in m_df.columns else 0
-                                    lunch = pd.to_numeric(m_df.at[idx, '점심근무'], errors='coerce') if '점심근무' in m_df.columns else 0
-                                    
-                                    if (pd.notna(early) and early > 0) or (pd.notna(lunch) and lunch > 0):
-                                        # 연장, 야간연장 등등 모든 추가수당 기둥을 싹 다 비워버림!
-                                        for oc in over_cols:
-                                            if oc in m_df.columns:
-                                                m_df.at[idx, oc] = None
+                                            # 빼야 할 중복 녀석들
+                                            night_ot = pd.to_numeric(m_df.at[idx, '야간연장근무'], errors='coerce') if '야간연장근무' in m_df.columns else 0
+                                            early = pd.to_numeric(m_df.at[idx, '조기출근'], errors='coerce') if '조기출근' in m_df.columns else 0
+                                            lunch = pd.to_numeric(m_df.at[idx, '점심근무'], errors='coerce') if '점심근무' in m_df.columns else 0
+                                            
+                                            n_val = night_ot if pd.notna(night_ot) else 0
+                                            e_val = early if pd.notna(early) else 0
+                                            l_val = lunch if pd.notna(lunch) else 0
+                                            
+                                            if pd.notna(ot):
+                                                # 연장시간 = 연장 - 야간 - 조기 - 점심
+                                                calc_ot = ot - n_val - e_val - l_val
+                                                
+                                                if calc_ot <= 0: 
+                                                    m_df.at[idx, '연장시간'] = None # 빼서 남는 게 없으면 빈칸
+                                                else: 
+                                                    m_df.at[idx, '연장시간'] = calc_ot # 남은 시간만 진짜 연장시간에 표시
                                 
                                 keywords = ['조기출근', '점심근무', '연장시간', '야간연장근무', '휴일근무', '휴일연장근무', '휴일야간연장근무', '야간근무']
                                 time_cols = [kw for kw in keywords if kw in m_df.columns]

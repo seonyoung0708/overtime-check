@@ -5,12 +5,12 @@ import re
 import base64
 import datetime
 import calendar
-import holidays  # 💡 2050년까지 공휴일 자동 계산
+import holidays
 
 # 1. 페이지 기본 설정
 st.set_page_config(page_title="코스맥스펫 연장근무 조회", page_icon="⏰", layout="wide")
 
-# 2. 스타일 설정 (고객님의 완벽한 프리미엄 디자인 그대로!)
+# 2. 스타일 설정
 st.markdown("""
 <style>
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
@@ -43,16 +43,13 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 3. 로고 설정
 logo_html = "<span style='font-size: 2.0rem; vertical-align: middle; margin-right: 8px;'>🐾</span>" 
 st.markdown(f"<h3>{logo_html}코스맥스펫(주)</h3>", unsafe_allow_html=True)
 st.markdown("<h1>⏰ 개인별 연장근무 상세 조회</h1>", unsafe_allow_html=True)
 st.markdown("<br><br>", unsafe_allow_html=True)
 
-# 한국 공휴일 정보 가져오기
 kr_holidays = holidays.KR()
 
-# 4. 데이터 로딩
 excel_files = [f for f in os.listdir('.') if f.endswith('.xlsx') and not f.startswith('~')]
 FILE_NAME = excel_files[0] if excel_files else None
 
@@ -121,7 +118,7 @@ def load_data(file_path):
 df = load_data(FILE_NAME)
 
 if df is None:
-    st.error("⚠️ 서버에 엑셀 데이터 파일(.xlsx)이 등록되지 않았습니다. 깃허브에 파일을 올려주세요.")
+    st.error("⚠️ 서버에 엑셀 데이터 파일(.xlsx)이 등록되지 않았습니다.")
 else:
     try: 
         s_name = st.query_params.get("name", "")
@@ -148,15 +145,13 @@ else:
             else:
                 st.query_params.clear()
 
-            # 13건 싹쓸이 검색
             search_name = input_name.replace(" ", "")
             search_birth = input_birth.replace(" ", "")
             
             name_col = next((c for c in ['이름', '성명'] if c in df.columns), None)
             if name_col:
                 mask = df[name_col].astype(str).str.replace(" ", "").str.contains(search_name, na=False)
-                if search_birth:
-                    mask &= df['생년월일_검색용'].astype(str).str.contains(search_birth, na=False)
+                if search_birth: mask &= df['생년월일_검색용'].astype(str).str.contains(search_birth, na=False)
                 user_data = df[mask].copy()
             else:
                 mask = df.astype(str).apply(lambda x: x.str.replace(" ", "").str.contains(search_name, na=False)).any(axis=1)
@@ -216,30 +211,24 @@ else:
                                 m_df = year_data[year_data['월'] == m_num].copy()
                                 worked_dates = m_df[date_col].dt.date.unique().tolist()
                                 
-                                # ★ 핵심 1: 연장시간에서 점심근무 싹 다 빼주기 (중복 차감 마법) ★
+                                # ★ 핵심: 동일 행에 점심/조기출근이 적혀있으면, 연장/야간/휴일 등 모든 추가수당 시간을 싹 비워버림 (강력한 뻥튀기 차단!) ★
+                                over_cols = ['연장시간', '야간연장근무', '휴일근무', '휴일연장근무', '휴일야간연장근무', '야간근무']
+                                
                                 for idx in m_df.index:
+                                    # 1. 휴일이면 '연장시간' 칸 비우기 (휴일은 휴일근무로만 들어가니까)
                                     if m_df.at[idx, '휴일여부']:
                                         if '연장시간' in m_df.columns:
                                             m_df.at[idx, '연장시간'] = None
-                                    else:
-                                        if '연장시간' in m_df.columns:
-                                            ot = pd.to_numeric(m_df.at[idx, '연장시간'], errors='coerce')
                                             
-                                            # 빼야 할 시간들 (조기출근, 점심근무)
-                                            early = pd.to_numeric(m_df.at[idx, '조기출근'], errors='coerce') if '조기출근' in m_df.columns else 0
-                                            lunch = pd.to_numeric(m_df.at[idx, '점심근무'], errors='coerce') if '점심근무' in m_df.columns else 0
-                                            
-                                            if pd.isna(early): early = 0
-                                            if pd.isna(lunch): lunch = 0
-                                            
-                                            if pd.notna(ot) and ot > 0:
-                                                # 연장시간 = 연장시간 - 조기출근 - 점심근무
-                                                calc_ot = ot - early - lunch
-                                                
-                                                if calc_ot <= 0:
-                                                    m_df.at[idx, '연장시간'] = None
-                                                else:
-                                                    m_df.at[idx, '연장시간'] = calc_ot
+                                    # 2. 점심근무나 조기출근이 적혀있는 줄이라면?
+                                    early = pd.to_numeric(m_df.at[idx, '조기출근'], errors='coerce') if '조기출근' in m_df.columns else 0
+                                    lunch = pd.to_numeric(m_df.at[idx, '점심근무'], errors='coerce') if '점심근무' in m_df.columns else 0
+                                    
+                                    if (pd.notna(early) and early > 0) or (pd.notna(lunch) and lunch > 0):
+                                        # 연장, 야간연장 등등 모든 추가수당 기둥을 싹 다 비워버림!
+                                        for oc in over_cols:
+                                            if oc in m_df.columns:
+                                                m_df.at[idx, oc] = None
                                 
                                 keywords = ['조기출근', '점심근무', '연장시간', '야간연장근무', '휴일근무', '휴일연장근무', '휴일야간연장근무', '야간근무']
                                 time_cols = [kw for kw in keywords if kw in m_df.columns]
@@ -294,14 +283,9 @@ else:
                                 display_cols.extend(time_cols)
                                 
                                 f_df = m_df[display_cols].copy()
-                                
-                                # 날짜 정리
                                 f_df[date_col] = m_df.apply(lambda r: f"{r[date_col].strftime('%Y-%m-%d')}" , axis=1)
                                 
-                                # ★ 구분 열을 '휴일근무' / '평일근무'로 강제 덮어쓰기 ★
-                                if '구분' not in f_df.columns: 
-                                    f_df.insert(0, '구분', '')
-                                
+                                if '구분' not in f_df.columns: f_df.insert(0, '구분', '')
                                 f_df['구분'] = m_df['휴일여부'].apply(lambda is_holiday: '휴일근무' if is_holiday else '평일근무')
                                 f_df.insert(0, '순번', range(1, len(f_df) + 1))
                                 

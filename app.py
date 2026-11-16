@@ -171,7 +171,6 @@ else:
                     user_data = user_data[user_data[date_col].apply(lambda d: True if pd.to_datetime(d, errors='coerce') is not pd.NaT else False)]
                     user_data[date_col] = pd.to_datetime(user_data[date_col])
                     
-                    # 시작/종료시간 없는 가짜 합계행 제거 필터 (26번 행 삭제 기능 유지)
                     start_col = next((c for c in ['시작시간', '출근시간', '시작'] if c in user_data.columns), None)
                     end_col = next((c for c in ['종료시간', '퇴근시간', '종료'] if c in user_data.columns), None)
                     if start_col and end_col:
@@ -219,31 +218,30 @@ else:
                                 m_df = year_data[year_data['월'] == m_num].copy()
                                 worked_dates = m_df[date_col].dt.date.unique().tolist()
                                 
-                                # ★ 핵심 ★: 연장시간은 다른 시간이랑 절대 중복 안 되게 싹 다 빼주기!
+                                # ★ 핵심: 연장시간에서 휴일근무, 조기출근, 점심근무, 야간연장 싹 다 빼기!
                                 for idx in m_df.index:
                                     if '연장시간' in m_df.columns:
                                         ot = pd.to_numeric(m_df.at[idx, '연장시간'], errors='coerce')
                                         
-                                        # 빼야 할 다른 시간들 (조기출근, 점심근무, 야간연장근무) 불러오기
                                         early = pd.to_numeric(m_df.at[idx, '조기출근'], errors='coerce') if '조기출근' in m_df.columns else 0
                                         lunch = pd.to_numeric(m_df.at[idx, '점심근무'], errors='coerce') if '점심근무' in m_df.columns else 0
                                         night = pd.to_numeric(m_df.at[idx, '야간연장근무'], errors='coerce') if '야간연장근무' in m_df.columns else 0
+                                        holiday = pd.to_numeric(m_df.at[idx, '휴일근무'], errors='coerce') if '휴일근무' in m_df.columns else 0
                                         
                                         e_val = early if pd.notna(early) else 0
                                         l_val = lunch if pd.notna(lunch) else 0
                                         n_val = night if pd.notna(night) else 0
+                                        h_val = holiday if pd.notna(holiday) else 0
                                         
                                         if pd.notna(ot):
-                                            # 공식: 연장시간 = 원래 연장시간 - 조기출근 - 점심근무 - 야간연장근무
-                                            calc_ot = ot - e_val - l_val - n_val
+                                            # 무적의 공식: 연장시간 = 원래 연장시간 - 조기출근 - 점심근무 - 야간연장 - 휴일근무
+                                            calc_ot = ot - e_val - l_val - n_val - h_val
                                             
-                                            # 빼고 나서 0 이하가 되면 아예 빈칸으로 날려버림
                                             if calc_ot <= 0:
                                                 m_df.at[idx, '연장시간'] = None
                                             else:
                                                 m_df.at[idx, '연장시간'] = calc_ot
                                                 
-                                    # 덤으로 휴일연장근무도 휴일야간이랑 중복되면 빼주기
                                     if '휴일연장근무' in m_df.columns and '휴일야간연장근무' in m_df.columns:
                                         h_ot = pd.to_numeric(m_df.at[idx, '휴일연장근무'], errors='coerce')
                                         h_night_ot = pd.to_numeric(m_df.at[idx, '휴일야간연장근무'], errors='coerce')

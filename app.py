@@ -52,7 +52,7 @@ st.markdown("<br><br>", unsafe_allow_html=True)
 # 한국 공휴일 정보 가져오기
 kr_holidays = holidays.KR()
 
-# 4. 데이터 로딩 (고객님 로직 유지)
+# 4. 데이터 로딩
 excel_files = [f for f in os.listdir('.') if f.endswith('.xlsx') and not f.startswith('~')]
 FILE_NAME = excel_files[0] if excel_files else None
 
@@ -216,18 +216,30 @@ else:
                                 m_df = year_data[year_data['월'] == m_num].copy()
                                 worked_dates = m_df[date_col].dt.date.unique().tolist()
                                 
+                                # ★ 핵심 1: 연장시간에서 점심근무 싹 다 빼주기 (중복 차감 마법) ★
                                 for idx in m_df.index:
                                     if m_df.at[idx, '휴일여부']:
                                         if '연장시간' in m_df.columns:
                                             m_df.at[idx, '연장시간'] = None
                                     else:
-                                        if '조기출근' in m_df.columns and '연장시간' in m_df.columns:
-                                            early = pd.to_numeric(m_df.at[idx, '조기출근'], errors='coerce')
+                                        if '연장시간' in m_df.columns:
                                             ot = pd.to_numeric(m_df.at[idx, '연장시간'], errors='coerce')
-                                            if pd.notna(early) and pd.notna(ot) and early > 0:
-                                                calc_ot = ot - early
-                                                if calc_ot <= 0: m_df.at[idx, '연장시간'] = None
-                                                else: m_df.at[idx, '연장시간'] = calc_ot
+                                            
+                                            # 빼야 할 시간들 (조기출근, 점심근무)
+                                            early = pd.to_numeric(m_df.at[idx, '조기출근'], errors='coerce') if '조기출근' in m_df.columns else 0
+                                            lunch = pd.to_numeric(m_df.at[idx, '점심근무'], errors='coerce') if '점심근무' in m_df.columns else 0
+                                            
+                                            if pd.isna(early): early = 0
+                                            if pd.isna(lunch): lunch = 0
+                                            
+                                            if pd.notna(ot) and ot > 0:
+                                                # 연장시간 = 연장시간 - 조기출근 - 점심근무
+                                                calc_ot = ot - early - lunch
+                                                
+                                                if calc_ot <= 0:
+                                                    m_df.at[idx, '연장시간'] = None
+                                                else:
+                                                    m_df.at[idx, '연장시간'] = calc_ot
                                 
                                 keywords = ['조기출근', '점심근무', '연장시간', '야간연장근무', '휴일근무', '휴일연장근무', '휴일야간연장근무', '야간근무']
                                 time_cols = [kw for kw in keywords if kw in m_df.columns]
@@ -286,13 +298,11 @@ else:
                                 # 날짜 정리
                                 f_df[date_col] = m_df.apply(lambda r: f"{r[date_col].strftime('%Y-%m-%d')}" , axis=1)
                                 
-                                # ★ 핵심: 구분 열을 '휴일근무' / '평일근무'로 강제 덮어쓰기 ★
+                                # ★ 구분 열을 '휴일근무' / '평일근무'로 강제 덮어쓰기 ★
                                 if '구분' not in f_df.columns: 
                                     f_df.insert(0, '구분', '')
                                 
-                                # 미리 계산해둔 '휴일여부'를 바탕으로 평일/휴일 단어 박아넣기
                                 f_df['구분'] = m_df['휴일여부'].apply(lambda is_holiday: '휴일근무' if is_holiday else '평일근무')
-                                
                                 f_df.insert(0, '순번', range(1, len(f_df) + 1))
                                 
                                 sum_row = {col: "" for col in f_df.columns}

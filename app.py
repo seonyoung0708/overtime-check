@@ -5,12 +5,12 @@ import re
 import base64
 import datetime
 import calendar
-import holidays  # 💡 2050년까지 공휴일 자동 계산을 위한 라이브러리 추가!
+import holidays  # 💡 2050년까지 공휴일 자동 계산
 
 # 1. 페이지 기본 설정
 st.set_page_config(page_title="코스맥스펫 연장근무 조회", page_icon="⏰", layout="wide")
 
-# 2. 스타일 설정
+# 2. 스타일 설정 (고객님의 완벽한 프리미엄 디자인 그대로!)
 st.markdown("""
 <style>
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
@@ -45,18 +45,14 @@ st.markdown("""
 
 # 3. 로고 설정
 logo_html = "<span style='font-size: 2.0rem; vertical-align: middle; margin-right: 8px;'>🐾</span>" 
-if os.path.exists("logo.png"):
-    with open("logo.png", "rb") as f:
-        b64 = base64.b64encode(f.read()).decode()
-        logo_html = f"<img src='data:image/png;base64,{b64}' style='height: 55px; vertical-align: middle; margin-right: 12px; padding-bottom: 5px;'>"
-
 st.markdown(f"<h3>{logo_html}코스맥스펫(주)</h3>", unsafe_allow_html=True)
 st.markdown("<h1>⏰ 개인별 연장근무 상세 조회</h1>", unsafe_allow_html=True)
 st.markdown("<br><br>", unsafe_allow_html=True)
 
-# 💡 한국 공휴일 정보 가져오기 (이 한 줄로 2100년까지 자동 계산됩니다!)
+# 한국 공휴일 정보 가져오기
 kr_holidays = holidays.KR()
 
+# 4. 데이터 로딩 (고객님 로직 유지)
 excel_files = [f for f in os.listdir('.') if f.endswith('.xlsx') and not f.startswith('~')]
 FILE_NAME = excel_files[0] if excel_files else None
 
@@ -89,8 +85,7 @@ def load_data(file_path):
                     if present:
                         df_part[target] = df_part[present].apply(pd.to_numeric, errors='coerce').max(axis=1)
                         drops = [c for c in present if c != target]
-                        if drops:
-                            df_part.drop(columns=drops, inplace=True)
+                        if drops: df_part.drop(columns=drops, inplace=True)
 
                 if '구분' in df_part.columns: df_part = df_part[~df_part['구분'].astype(str).str.contains('합계|소계|총', na=False)]
                 date_c = next((c for c in ['일자', '날짜', '근무일자'] if c in df_part.columns), None)
@@ -144,39 +139,50 @@ else:
             submit = st.form_submit_button("내역 조회하기", use_container_width=True)
 
     if submit:
-        if not input_name or not input_birth:
-            st.warning("이름과 생년월일을 모두 입력해주세요.")
+        if not input_name:
+            st.warning("이름을 입력해주세요.")
         else:
             if remember_me:
                 st.query_params["name"] = input_name
-                st.query_params["birth"] = input_birth
+                if input_birth: st.query_params["birth"] = input_birth
             else:
                 st.query_params.clear()
 
+            # ★ 무적의 싹쓸이 검색 적용 (띄어쓰기 달라도 무조건 찾음) ★
+            search_name = input_name.replace(" ", "")
+            search_birth = input_birth.replace(" ", "")
+            
             name_col = next((c for c in ['이름', '성명'] if c in df.columns), None)
             if name_col:
-                mask = (df[name_col].astype(str).str.strip() == input_name.strip()) & (df['생년월일_검색용'] == input_birth.strip())
+                mask = df[name_col].astype(str).str.replace(" ", "").str.contains(search_name, na=False)
+                if search_birth:
+                    mask &= df['생년월일_검색용'].astype(str).str.contains(search_birth, na=False)
+                user_data = df[mask].copy()
+            else:
+                # 엑셀 헤더 인식이 안 됐을 때 싹쓸이 전체 검색
+                mask = df.astype(str).apply(lambda x: x.str.replace(" ", "").str.contains(search_name, na=False)).any(axis=1)
                 user_data = df[mask].copy()
 
-                if user_data.empty: st.error("정보가 일치하지 않습니다. 이름과 생년월일을 다시 확인해주세요.")
-                else:
-                    date_col = next((c for c in ['일자', '날짜', '근무일자'] if c in user_data.columns), None)
-                    if date_col:
-                        def clean_date_val(d):
-                            if pd.isna(d): return d
-                            if isinstance(d, datetime.datetime): return d
-                            return re.sub(r'$.*?$', '', str(d)).strip()
-                        user_data[date_col] = user_data[date_col].apply(clean_date_val)
-                        user_data = user_data[user_data[date_col].apply(lambda d: True if pd.to_datetime(d, errors='coerce') is not pd.NaT else False)]
-                        user_data[date_col] = pd.to_datetime(user_data[date_col])
-                        user_data = user_data.dropna(subset=[date_col])
-                        user_data = user_data.sort_values(by=date_col)
-                        
-                        # 💡 날짜가 토/일이거나 자동계산 공휴일에 포함되면 휴일로 인식!
-                        user_data['휴일여부'] = user_data[date_col].apply(lambda d: True if d.dayofweek >= 5 or d.date() in kr_holidays else False)
-                        
-                        user_data['년도'] = user_data[date_col].dt.year
-                        user_data['월'] = user_data[date_col].dt.month
+            if user_data.empty: 
+                st.error("정보가 일치하지 않습니다. 이름과 생년월일을 다시 확인해주세요.")
+            else:
+                date_col = next((c for c in ['일자', '날짜', '근무일자'] if c in user_data.columns), None)
+                if not date_col and 'Unnamed: 4' in user_data.columns: date_col = 'Unnamed: 4'
+                
+                if date_col:
+                    def clean_date_val(d):
+                        if pd.isna(d): return d
+                        if isinstance(d, datetime.datetime): return d
+                        return re.sub(r'$.*?$', '', str(d)).strip()
+                    user_data[date_col] = user_data[date_col].apply(clean_date_val)
+                    user_data = user_data[user_data[date_col].apply(lambda d: True if pd.to_datetime(d, errors='coerce') is not pd.NaT else False)]
+                    user_data[date_col] = pd.to_datetime(user_data[date_col])
+                    user_data = user_data.dropna(subset=[date_col])
+                    user_data = user_data.sort_values(by=date_col)
+                    
+                    user_data['휴일여부'] = user_data[date_col].apply(lambda d: True if d.dayofweek >= 5 or d.date() in kr_holidays else False)
+                    user_data['년도'] = user_data[date_col].dt.year
+                    user_data['월'] = user_data[date_col].dt.month
 
                     years = sorted(user_data['년도'].unique(), reverse=True)
                     st.markdown("<hr style='margin:20px 0;'>", unsafe_allow_html=True)
@@ -221,10 +227,8 @@ else:
                                             ot = pd.to_numeric(m_df.at[idx, '연장시간'], errors='coerce')
                                             if pd.notna(early) and pd.notna(ot) and early > 0:
                                                 calc_ot = ot - early
-                                                if calc_ot <= 0:
-                                                    m_df.at[idx, '연장시간'] = None
-                                                else:
-                                                    m_df.at[idx, '연장시간'] = calc_ot
+                                                if calc_ot <= 0: m_df.at[idx, '연장시간'] = None
+                                                else: m_df.at[idx, '연장시간'] = calc_ot
                                 
                                 keywords = ['조기출근', '점심근무', '연장시간', '야간연장근무', '휴일근무', '휴일연장근무', '휴일야간연장근무', '야간근무']
                                 time_cols = [kw for kw in keywords if kw in m_df.columns]
@@ -242,14 +246,9 @@ else:
                                             else:
                                                 curr_date = datetime.date(selected_year, m_num, day)
                                                 is_worked = curr_date in worked_dates
-                                                
-                                                # 💡 요일이 일요일(6)이거나, 자동 공휴일 리스트에 포함되면 빨간색!
-                                                if j == 6 or curr_date in kr_holidays:
-                                                    classes = ["cal-sun"]
-                                                elif j == 5:
-                                                    classes = ["cal-sat"]
-                                                else:
-                                                    classes = [""]
+                                                if j == 6 or curr_date in kr_holidays: classes = ["cal-sun"]
+                                                elif j == 5: classes = ["cal-sat"]
+                                                else: classes = [""]
                                                     
                                                 if is_worked: cal_html += f"<td><div class='cal-day cal-worked'>{day}</div></td>"
                                                 else: cal_html += f"<td><div class='cal-day {' '.join(classes)}'>{day}</div></td>"

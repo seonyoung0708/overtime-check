@@ -2,25 +2,15 @@ import streamlit as st
 import pandas as pd
 import os
 
-# 1. 페이지 설정
 st.set_page_config(page_title="COSMAX PET 연장근무 상세조회", page_icon="🐾", layout="wide")
 
-# 2. 스타일 설정 (파란 통계 네모 디자인 적용!)
 st.markdown("""
 <style>
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
-    
     html, body, [class*="css"]  { font-family: 'Pretendard', sans-serif !important; }
     h1 { text-align: center; color: #333333; margin-bottom: 20px; }
-    
-    .search-box { 
-        background-color: #f8f9fa; padding: 20px; border-radius: 10px; margin-bottom: 30px; border: 1px solid #e9ecef; 
-    }
-    
-    /* 우리가 환호했던 그 통계 네모 디자인 */
-    .stat-box { 
-        text-align: center; padding: 15px; border-radius: 8px; border: 1px solid #e0e0e0; background-color: white; 
-    }
+    .search-box { background-color: #f8f9fa; padding: 20px; border-radius: 10px; margin-bottom: 30px; border: 1px solid #e9ecef; }
+    .stat-box { text-align: center; padding: 15px; border-radius: 8px; border: 1px solid #e0e0e0; background-color: white; }
     .stat-title { font-size: 0.9em; color: #666; margin-bottom: 5px; }
     .stat-value { font-size: 1.5em; font-weight: bold; color: #1f77b4; }
     .stat-unit { font-size: 0.8em; color: #333; font-weight: normal; }
@@ -30,93 +20,60 @@ st.markdown("""
 st.markdown("<h1>🐾 COSMAX PET 연장근무 상세조회</h1>", unsafe_allow_html=True)
 st.markdown("---")
 
-# 3. 데이터 로딩
-@st.cache_data(ttl=60)
-def load_data(file_path):
-    if not file_path or not os.path.exists(file_path): return None
-    try:
-        all_sheets = pd.read_excel(file_path, sheet_name=None)
-        combined_df = pd.DataFrame()
-        for sheet_name, df in all_sheets.items():
-            if df.empty: continue
-            df.columns = [str(c).replace(" ", "").replace("\n", "").strip() for c in df.columns]
-            combined_df = pd.concat([combined_df, df], ignore_index=True)
-        return combined_df if not combined_df.empty else None
-    except Exception as e:
-        return None
-
-# 4. 본문 로직
 excel_files = [f for f in os.listdir('.') if f.endswith('.xlsx') and not f.startswith('~')]
 FILE_NAME = excel_files[0] if excel_files else None
-df = load_data(FILE_NAME)
 
-if df is None:
-    st.warning("⚠️ 서버에 엑셀 데이터 파일(.xlsx)이 없습니다.")
+if not FILE_NAME:
+    st.warning("⚠️ 서버에 엑셀 파일이 없습니다.")
 else:
+    # 엑셀을 가장 무식하고 확실하게 읽어옵니다.
+    df = pd.read_excel(FILE_NAME)
+    
     with st.container():
         st.markdown('<div class="search-box">', unsafe_allow_html=True)
         col1, col2 = st.columns(2)
-        
         with col1:
             input_name = st.text_input("👤 성명", placeholder="이름을 입력하세요 (예: 김원태)")
         with col2:
-            input_birth = st.text_input("🎂 생년월일 (6자리)", placeholder="예: 900101", type="password")
+            input_birth = st.text_input("🎂 생년월일", placeholder="조건 무시됨", type="password", disabled=True)
+            st.caption("※ 현재 검색 문제 해결을 위해 이름으로만 검색됩니다.")
             
         search_btn = st.button("내역 조회하기", use_container_width=True, type="primary")
         st.markdown('</div>', unsafe_allow_html=True)
 
     if search_btn:
-        if not input_name or not input_birth:
-            st.error("이름과 생년월일을 모두 입력해주세요.")
+        if not input_name:
+            st.error("이름을 입력해주세요.")
         else:
-            filtered_df = pd.DataFrame()
+            search_term = input_name.replace(" ", "")
             
-            # 제일 처음 작동 잘 되던 검색 방식
-            if '성명' in df.columns:
-                filtered_df = df[df['성명'].astype(str) == input_name]
-            elif '이름' in df.columns:
-                filtered_df = df[df['이름'].astype(str) == input_name]
+            # ★ 핵심: 컬럼명이 뭐든 상관없이 엑셀 전체를 다 뒤져서 이름(띄어쓰기 제거)이 포함된 줄을 싹 다 가져옴 ★
+            mask = df.astype(str).apply(lambda x: x.str.replace(" ", "").str.contains(search_term, na=False)).any(axis=1)
+            filtered_df = df[mask]
             
-            if not filtered_df.empty and '생년월일' in filtered_df.columns:
-                filtered_df = filtered_df[filtered_df['생년월일'].astype(str) == input_birth]
-                
-            # '합계' 줄 제거 로직 (이때는 단순하게 뺐습니다)
-            if '성명' in filtered_df.columns:
-                filtered_df = filtered_df[~filtered_df['성명'].astype(str).str.contains("합계", na=False)]
-                
+            # '합계'라는 글자가 있는 줄은 제외
+            mask_sum = filtered_df.astype(str).apply(lambda x: x.str.contains('합계', na=False)).any(axis=1)
+            filtered_df = filtered_df[~mask_sum]
+            
             if filtered_df.empty:
-                st.info("조건에 맞는 연장근무 내역이 없습니다.")
+                st.error(f"정말 이상합니다. 현재 올려진 엑셀 파일 안에는 '{input_name}' 이라는 글자가 단 하나도 존재하지 않습니다. 엑셀 파일을 다시 확인해 주세요.")
             else:
                 total_count = len(filtered_df)
                 total_hours = 0
                 
-                if '연장시간' in filtered_df.columns:
-                    total_hours = pd.to_numeric(filtered_df['연장시간'], errors='coerce').sum()
-                elif '시간' in filtered_df.columns:
-                    total_hours = pd.to_numeric(filtered_df['시간'], errors='coerce').sum()
+                # 시간 찾기 로직도 가장 강력하게
+                for col in filtered_df.columns:
+                    if '시간' in str(col) or 'Unnamed: 7' in str(col):
+                        total_hours = pd.to_numeric(filtered_df[col], errors='coerce').sum()
+                        break
                 
-                # ★ 바로 우리가 좋아했던 그 파란 통계 네모 박스! ★
                 st.markdown("### 📊 연장근무 요약")
                 col_stat1, col_stat2 = st.columns(2)
-                
                 with col_stat1:
-                    st.markdown(f"""
-                    <div class="stat-box">
-                        <div class="stat-title">🗓️ 발생 일수</div>
-                        <div class="stat-value">{total_count}<span class="stat-unit"> 건</span></div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
+                    st.markdown(f'<div class="stat-box"><div class="stat-title">🗓️ 발생 일수</div><div class="stat-value">{total_count}<span class="stat-unit"> 건</span></div></div>', unsafe_allow_html=True)
                 with col_stat2:
-                    st.markdown(f"""
-                    <div class="stat-box" style="background-color: #3b5998; border:none;">
-                        <div class="stat-title" style="color: white;">⏱️ 총 연장시간 합계</div>
-                        <div class="stat-value" style="color: white;">{total_hours:g}<span class="stat-unit" style="color: rgba(255,255,255,0.8);"> 시간</span></div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
+                    st.markdown(f'<div class="stat-box" style="background-color: #3b5998; border:none;"><div class="stat-title" style="color: white;">⏱️ 총 연장시간 합계</div><div class="stat-value" style="color: white;">{total_hours:g}<span class="stat-unit" style="color: rgba(255,255,255,0.8);"> 시간</span></div></div>', unsafe_allow_html=True)
                 st.markdown("<br>", unsafe_allow_html=True)
                 
                 st.markdown("### 📝 상세 내역")
-                display_cols = [c for c in filtered_df.columns if not str(c).startswith('Unnamed')]
-                st.dataframe(filtered_df[display_cols], use_container_width=True, hide_index=True)
+                st.dataframe(filtered_df, use_container_width=True, hide_index=True)

@@ -148,7 +148,7 @@ else:
             else:
                 st.query_params.clear()
 
-            # ★ 무적의 싹쓸이 검색 적용 (띄어쓰기 달라도 무조건 찾음) ★
+            # 13건 싹쓸이 검색
             search_name = input_name.replace(" ", "")
             search_birth = input_birth.replace(" ", "")
             
@@ -159,7 +159,6 @@ else:
                     mask &= df['생년월일_검색용'].astype(str).str.contains(search_birth, na=False)
                 user_data = df[mask].copy()
             else:
-                # 엑셀 헤더 인식이 안 됐을 때 싹쓸이 전체 검색
                 mask = df.astype(str).apply(lambda x: x.str.replace(" ", "").str.contains(search_name, na=False)).any(axis=1)
                 user_data = df[mask].copy()
 
@@ -283,10 +282,17 @@ else:
                                 display_cols.extend(time_cols)
                                 
                                 f_df = m_df[display_cols].copy()
-                                f_df[date_col] = m_df.apply(lambda r: f"{r[date_col].strftime('%Y-%m-%d')} (휴일)" if r['휴일여부'] else r[date_col].strftime('%Y-%m-%d'), axis=1)
-                                if '구분' in m_df.columns: f_df.insert(0, '구분', m_df['구분'])
-                                else: f_df.insert(0, '구분', '')
-                                f_df.loc[m_df['휴일여부'] == True, '구분'] = '휴일근무'
+                                
+                                # 날짜 정리
+                                f_df[date_col] = m_df.apply(lambda r: f"{r[date_col].strftime('%Y-%m-%d')}" , axis=1)
+                                
+                                # ★ 핵심: 구분 열을 '휴일근무' / '평일근무'로 강제 덮어쓰기 ★
+                                if '구분' not in f_df.columns: 
+                                    f_df.insert(0, '구분', '')
+                                
+                                # 미리 계산해둔 '휴일여부'를 바탕으로 평일/휴일 단어 박아넣기
+                                f_df['구분'] = m_df['휴일여부'].apply(lambda is_holiday: '휴일근무' if is_holiday else '평일근무')
+                                
                                 f_df.insert(0, '순번', range(1, len(f_df) + 1))
                                 
                                 sum_row = {col: "" for col in f_df.columns}

@@ -48,7 +48,9 @@ st.markdown(f"<h3>{logo_html}코스맥스펫(주)</h3>", unsafe_allow_html=True)
 st.markdown("<h1>⏰ 개인별 연장근무 상세 조회</h1>", unsafe_allow_html=True)
 st.markdown("<br><br>", unsafe_allow_html=True)
 
+# ★ 한국 공휴일 설정 및 10월 6일 대체휴무일 수동 추가 ★
 kr_holidays = holidays.KR()
+kr_holidays[datetime.date(2026, 10, 6)] = "대체휴무일" 
 
 excel_files = [f for f in os.listdir('.') if f.endswith('.xlsx') and not f.startswith('~')]
 FILE_NAME = excel_files[0] if excel_files else None
@@ -218,12 +220,11 @@ else:
                                 m_df = year_data[year_data['월'] == m_num].copy()
                                 worked_dates = m_df[date_col].dt.date.unique().tolist()
                                 
-                                # 🚀 ★ 무자비한 짬뽕 분해 공식 (달력 요일 무시!) ★ 🚀
+                                # ★ 연장시간 짬뽕 중복 완전 분해 로직 ★
                                 for idx in m_df.index:
                                     if '연장시간' in m_df.columns:
                                         ot = pd.to_numeric(m_df.at[idx, '연장시간'], errors='coerce')
                                         
-                                        # 캘린더 요일 상관없이! 엑셀에 다른 수당이 단 1시간이라도 적혀있으면 모조리 불러옵니다.
                                         e_val = pd.to_numeric(m_df.at[idx, '조기출근'], errors='coerce') if '조기출근' in m_df.columns else 0
                                         l_val = pd.to_numeric(m_df.at[idx, '점심근무'], errors='coerce') if '점심근무' in m_df.columns else 0
                                         n_val = pd.to_numeric(m_df.at[idx, '야간연장근무'], errors='coerce') if '야간연장근무' in m_df.columns else 0
@@ -232,7 +233,6 @@ else:
                                         hnot_val = pd.to_numeric(m_df.at[idx, '휴일야간연장근무'], errors='coerce') if '휴일야간연장근무' in m_df.columns else 0
                                         nw_val = pd.to_numeric(m_df.at[idx, '야간근무'], errors='coerce') if '야간근무' in m_df.columns else 0
                                         
-                                        # NaN 값 0으로 처리
                                         e_val = e_val if pd.notna(e_val) else 0
                                         l_val = l_val if pd.notna(l_val) else 0
                                         n_val = n_val if pd.notna(n_val) else 0
@@ -242,16 +242,13 @@ else:
                                         nw_val = nw_val if pd.notna(nw_val) else 0
                                         
                                         if pd.notna(ot):
-                                            # 무조건 다 뺀다! 휴일이건 평일이건 다른 수당이 있으면 연장근무(연장시간)에서 무자비하게 뺍니다!
                                             calc_ot = ot - e_val - l_val - n_val - h_val - hot_val - hnot_val - nw_val
                                             
-                                            # 빼고 나서 0 이하로 떨어지면 텅 빈칸으로 싹 지워버림!
                                             if calc_ot <= 0:
                                                 m_df.at[idx, '연장시간'] = None
                                             else:
                                                 m_df.at[idx, '연장시간'] = calc_ot
                                                 
-                                    # 덤으로 휴일연장근무 안의 거품(휴일야간)도 깔끔하게 제거
                                     if '휴일연장근무' in m_df.columns and '휴일야간연장근무' in m_df.columns:
                                         h_ot = pd.to_numeric(m_df.at[idx, '휴일연장근무'], errors='coerce')
                                         h_not = pd.to_numeric(m_df.at[idx, '휴일야간연장근무'], errors='coerce')
@@ -279,6 +276,7 @@ else:
                                             else:
                                                 curr_date = datetime.date(selected_year, m_num, day)
                                                 is_worked = curr_date in worked_dates
+                                                # 달력에도 10월 6일 등 지정 휴일이면 무조건 일요일처럼 빨간색(cal-sun) 표시!
                                                 if j == 6 or curr_date in kr_holidays: classes = ["cal-sun"]
                                                 elif j == 5: classes = ["cal-sat"]
                                                 else: classes = [""]
@@ -322,4 +320,13 @@ else:
                                 f_df['구분'] = m_df['휴일여부'].apply(lambda is_holiday: '휴일근무' if is_holiday else '평일근무')
                                 f_df.insert(0, '순번', range(1, len(f_df) + 1))
                                 
-                                sum_row = {col: "" for col in f_df.
+                                sum_row = {col: "" for col in f_df.columns}
+                                sum_row['순번'], sum_row['구분'] = "합계", f"{m_num}월 총합"
+                                for col in time_cols: sum_row[col] = f_df[col].fillna(0).sum()
+                                f_df = pd.concat([f_df, pd.DataFrame([sum_row])], ignore_index=True)
+
+                                for col in f_df.columns:
+                                    if col in time_cols: f_df[col] = f_df[col].apply(fmt_num)
+                                    elif '시간' in str(col): f_df[col] = f_df[col].apply(fmt_time)
+                                
+                                st.markdown(f_df.fillna("").to_html(index=False, escape=False).replace('<table border="1" class="dataframe">', '<table class="center-table">'), unsafe_allow_html=True)

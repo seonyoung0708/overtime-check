@@ -25,7 +25,7 @@ st.markdown("""
 st.markdown("<h1>🐾 COSMAX PET 연장근무 상세조회</h1>", unsafe_allow_html=True)
 st.markdown("---")
 
-# 3. 데이터 로딩 (에러 절대 안나는 기본 방식!)
+# 3. 데이터 로딩
 @st.cache_data(ttl=60)
 def load_data(file_path):
     if not file_path or not os.path.exists(file_path): return None
@@ -45,7 +45,7 @@ def load_data(file_path):
     except Exception as e:
         return None
 
-# 4. 달력 생성 함수 (파란 동그라미 버전!)
+# 4. 달력 생성 함수
 def create_calendar(year, month, work_dates):
     cal = calendar.monthcalendar(year, month)
     html = f'''
@@ -85,7 +85,6 @@ df = load_data(FILE_NAME)
 if df is None:
     st.warning("⚠️ 서버에 엑셀 데이터 파일(.xlsx)이 없습니다.")
 else:
-    # --- 정보 기억하기 기능 추가 ---
     if 'saved_name' not in st.session_state: st.session_state['saved_name'] = ""
     if 'saved_birth' not in st.session_state: st.session_state['saved_birth'] = ""
 
@@ -112,14 +111,36 @@ else:
         if not input_name or not input_birth:
             st.error("이름과 생년월일을 모두 입력해주세요.")
         else:
-            # 완벽했던 그 검색 로직!
-            filtered_df = pd.DataFrame()
-            if '성명' in df.columns: filtered_df = df[df['성명'].astype(str) == input_name]
-            elif '이름' in df.columns: filtered_df = df[df['이름'].astype(str) == input_name]
             
-            if not filtered_df.empty and '생년월일' in filtered_df.columns:
-                filtered_df = filtered_df[filtered_df['생년월일'].astype(str) == input_birth]
-                
+            # ==========================================
+            # ★★★ 가장 강력한 검색 엔진 (포함 검색) ★★★
+            # ==========================================
+            filtered_df = df.copy()
+            
+            # 1) 이름으로 찾기 (공백 무시, 포함 여부로 확인)
+            name_found = False
+            for col in filtered_df.columns:
+                if '성명' in col or '이름' in col:
+                    filtered_df = filtered_df[filtered_df[col].astype(str).str.contains(input_name, na=False)]
+                    name_found = True
+                    break
+            
+            if not name_found:
+                 filtered_df = filtered_df[filtered_df.apply(lambda row: row.astype(str).str.contains(input_name).any(), axis=1)]
+
+            # 2) 생년월일로 찾기 (공백 무시, 포함 여부로 확인)
+            if not filtered_df.empty:
+                birth_found = False
+                for col in filtered_df.columns:
+                    if '생년월일' in col or '생년' in col:
+                        filtered_df = filtered_df[filtered_df[col].astype(str).str.contains(input_birth, na=False)]
+                        birth_found = True
+                        break
+                        
+                if not birth_found:
+                     filtered_df = filtered_df[filtered_df.apply(lambda row: row.astype(str).str.contains(input_birth).any(), axis=1)]
+            # ==========================================
+
             if filtered_df.empty:
                 st.info("조건에 맞는 연장근무 내역이 없습니다.")
             else:
@@ -128,7 +149,7 @@ else:
                 if '연장시간' in filtered_df.columns: total_hours = pd.to_numeric(filtered_df['연장시간'], errors='coerce').sum()
                 elif '시간' in filtered_df.columns: total_hours = pd.to_numeric(filtered_df['시간'], errors='coerce').sum()
                 
-                # ★ 여기서 평일/휴일 칸 추가! (표 맨 앞으로) ★
+                # 평일/휴일 칸 추가
                 date_col = '날짜' if '날짜' in filtered_df.columns else '근무일자' if '근무일자' in filtered_df.columns else None
                 if date_col:
                     kr_holidays = holidays.KR()
@@ -144,7 +165,6 @@ else:
                     st.markdown(f'<div class="stat-box" style="background-color: #3b5998; border:none;"><div class="stat-title" style="color: white;">⏱️ 총 연장시간 합계</div><div class="stat-value" style="color: white;">{total_hours:g}<span class="stat-unit" style="color: rgba(255,255,255,0.8);"> 시간</span></div></div>', unsafe_allow_html=True)
                 st.markdown("<br>", unsafe_allow_html=True)
                 
-                # 완벽했던 달력 렌더링!
                 if date_col:
                     try:
                         work_dates_dt = pd.to_datetime(filtered_df[date_col], errors='coerce').dropna()
@@ -161,7 +181,5 @@ else:
                     except: pass
                 
                 st.markdown("### 📝 상세 내역")
-                
-                # Unnamed 싹 지우고 보여주기
                 display_cols = [c for c in filtered_df.columns if not str(c).startswith('Unnamed')]
                 st.dataframe(filtered_df[display_cols], use_container_width=True, hide_index=True)

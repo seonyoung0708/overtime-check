@@ -84,8 +84,9 @@ def load_data(file_path):
                         drops = [c for c in present if c != target]
                         if drops: df_part.drop(columns=drops, inplace=True)
 
-                mask_sum_any = df_part.astype(str).apply(lambda x: x.str.contains('합계|소계|총', na=False)).any(axis=1)
-                df_part = df_part[~mask_sum_any]
+                if '구분' in df_part.columns: df_part = df_part[~df_part['구분'].astype(str).str.contains('합계|소계|총', na=False)]
+                date_c = next((c for c in ['일자', '날짜', '근무일자'] if c in df_part.columns), None)
+                if date_c: df_part = df_part[~df_part[date_c].astype(str).str.contains('합계|소계|총', na=False)]
                 
                 ffill_cols = [c for c in df_part.columns if any(k in c for k in ['이름', '성명', '부서', '소속', '생년월일', '구분', '일자', '날짜', '근무일자'])]
                 for c in ffill_cols: df_part[c] = df_part[c].ffill()
@@ -171,12 +172,11 @@ else:
                     user_data = user_data[user_data[date_col].apply(lambda d: True if pd.to_datetime(d, errors='coerce') is not pd.NaT else False)]
                     user_data[date_col] = pd.to_datetime(user_data[date_col])
                     
-                    start_col = next((c for c in ['시작시간', '출근시간', '시작'] if c in user_data.columns), None)
-                    end_col = next((c for c in ['종료시간', '퇴근시간', '종료'] if c in user_data.columns), None)
-                    if start_col and end_col:
-                        mask_valid_rows = (user_data[start_col].astype(str).str.strip().replace('nan', '') != '') | \
-                                          (user_data[end_col].astype(str).str.strip().replace('nan', '') != '')
-                        user_data = user_data[mask_valid_rows]
+                    # ★ 핵심 1: '합계' 뻥튀기 방지 로직 (시작시간/종료시간이 없는데 숫자가 큰 엑셀 자체 요약 행을 제거합니다) ★
+                    start_time_col = next((c for c in ['시작', '시작시간'] if c in user_data.columns), None)
+                    if start_time_col:
+                        # 시작시간이 비어있는(NaN 또는 공백) 행을 모조리 날려버립니다. (순수하게 출퇴근 기록이 있는 행만 남김)
+                        user_data = user_data[user_data[start_time_col].astype(str).str.strip().replace('nan', '') != '']
                     
                     user_data = user_data.dropna(subset=[date_col])
                     user_data = user_data.sort_values(by=date_col)
@@ -218,39 +218,6 @@ else:
                                 m_df = year_data[year_data['월'] == m_num].copy()
                                 worked_dates = m_df[date_col].dt.date.unique().tolist()
                                 
-                                # ★ 핵심: 연장시간에서 휴일근무, 조기출근, 점심근무, 야간연장 싹 다 빼기!
-                                for idx in m_df.index:
-                                    if '연장시간' in m_df.columns:
-                                        ot = pd.to_numeric(m_df.at[idx, '연장시간'], errors='coerce')
-                                        
-                                        early = pd.to_numeric(m_df.at[idx, '조기출근'], errors='coerce') if '조기출근' in m_df.columns else 0
-                                        lunch = pd.to_numeric(m_df.at[idx, '점심근무'], errors='coerce') if '점심근무' in m_df.columns else 0
-                                        night = pd.to_numeric(m_df.at[idx, '야간연장근무'], errors='coerce') if '야간연장근무' in m_df.columns else 0
-                                        holiday = pd.to_numeric(m_df.at[idx, '휴일근무'], errors='coerce') if '휴일근무' in m_df.columns else 0
-                                        
-                                        e_val = early if pd.notna(early) else 0
-                                        l_val = lunch if pd.notna(lunch) else 0
-                                        n_val = night if pd.notna(night) else 0
-                                        h_val = holiday if pd.notna(holiday) else 0
-                                        
-                                        if pd.notna(ot):
-                                            # 무적의 공식: 연장시간 = 원래 연장시간 - 조기출근 - 점심근무 - 야간연장 - 휴일근무
-                                            calc_ot = ot - e_val - l_val - n_val - h_val
-                                            
-                                            if calc_ot <= 0:
-                                                m_df.at[idx, '연장시간'] = None
-                                            else:
-                                                m_df.at[idx, '연장시간'] = calc_ot
-                                                
-                                    if '휴일연장근무' in m_df.columns and '휴일야간연장근무' in m_df.columns:
-                                        h_ot = pd.to_numeric(m_df.at[idx, '휴일연장근무'], errors='coerce')
-                                        h_night_ot = pd.to_numeric(m_df.at[idx, '휴일야간연장근무'], errors='coerce')
-                                        
-                                        if pd.notna(h_ot) and pd.notna(h_night_ot) and h_night_ot > 0:
-                                            calc_h_ot = h_ot - h_night_ot
-                                            if calc_h_ot <= 0: m_df.at[idx, '휴일연장근무'] = None
-                                            else: m_df.at[idx, '휴일연장근무'] = calc_h_ot
-
                                 keywords = ['조기출근', '점심근무', '연장시간', '야간연장근무', '휴일근무', '휴일연장근무', '휴일야간연장근무', '야간근무']
                                 time_cols = [kw for kw in keywords if kw in m_df.columns]
                                 

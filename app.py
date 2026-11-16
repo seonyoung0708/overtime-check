@@ -48,9 +48,8 @@ st.markdown(f"<h3>{logo_html}코스맥스펫(주)</h3>", unsafe_allow_html=True)
 st.markdown("<h1>⏰ 개인별 연장근무 상세 조회</h1>", unsafe_allow_html=True)
 st.markdown("<br><br>", unsafe_allow_html=True)
 
-# ★ 한국 공휴일 설정 및 10월 6일 대체휴무일 수동 추가 ★
+# 10월 6일 수동 지정 취소! 일반적인 한국 공휴일만 달력에 표시합니다.
 kr_holidays = holidays.KR()
-kr_holidays[datetime.date(2026, 10, 6)] = "대체휴무일" 
 
 excel_files = [f for f in os.listdir('.') if f.endswith('.xlsx') and not f.startswith('~')]
 FILE_NAME = excel_files[0] if excel_files else None
@@ -220,7 +219,6 @@ else:
                                 m_df = year_data[year_data['월'] == m_num].copy()
                                 worked_dates = m_df[date_col].dt.date.unique().tolist()
                                 
-                                # ★ 연장시간 짬뽕 중복 완전 분해 로직 ★
                                 for idx in m_df.index:
                                     if '연장시간' in m_df.columns:
                                         ot = pd.to_numeric(m_df.at[idx, '연장시간'], errors='coerce')
@@ -276,7 +274,6 @@ else:
                                             else:
                                                 curr_date = datetime.date(selected_year, m_num, day)
                                                 is_worked = curr_date in worked_dates
-                                                # 달력에도 10월 6일 등 지정 휴일이면 무조건 일요일처럼 빨간색(cal-sun) 표시!
                                                 if j == 6 or curr_date in kr_holidays: classes = ["cal-sun"]
                                                 elif j == 5: classes = ["cal-sat"]
                                                 else: classes = [""]

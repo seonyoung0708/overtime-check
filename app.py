@@ -84,8 +84,6 @@ def load_data(file_path):
                         drops = [c for c in present if c != target]
                         if drops: df_part.drop(columns=drops, inplace=True)
 
-                # ★ 강력 필터 1: 엑셀 파일 안에 "합계", "소계", "총" 이라는 단어가 들어간 행을 모조리 날려버립니다.
-                # (이것들이 살아있으면 진짜 일한 데이터인 줄 알고 더블로 계산해버림)
                 mask_sum_any = df_part.astype(str).apply(lambda x: x.str.contains('합계|소계|총', na=False)).any(axis=1)
                 df_part = df_part[~mask_sum_any]
                 
@@ -170,10 +168,17 @@ else:
                         if isinstance(d, datetime.datetime): return d
                         return re.sub(r'$.*?$', '', str(d)).strip()
                     user_data[date_col] = user_data[date_col].apply(clean_date_val)
-                    
-                    # ★ 강력 필터 2: 엑셀에서 날짜 칸이 비어있거나, 날짜 형태가 아닌 찌꺼기 행은 무조건 날려버립니다.
                     user_data = user_data[user_data[date_col].apply(lambda d: True if pd.to_datetime(d, errors='coerce') is not pd.NaT else False)]
                     user_data[date_col] = pd.to_datetime(user_data[date_col])
+                    
+                    # 시작/종료시간 없는 가짜 합계행 제거 필터 (26번 행 삭제 기능 유지)
+                    start_col = next((c for c in ['시작시간', '출근시간', '시작'] if c in user_data.columns), None)
+                    end_col = next((c for c in ['종료시간', '퇴근시간', '종료'] if c in user_data.columns), None)
+                    if start_col and end_col:
+                        mask_valid_rows = (user_data[start_col].astype(str).str.strip().replace('nan', '') != '') | \
+                                          (user_data[end_col].astype(str).str.strip().replace('nan', '') != '')
+                        user_data = user_data[mask_valid_rows]
+                    
                     user_data = user_data.dropna(subset=[date_col])
                     user_data = user_data.sort_values(by=date_col)
                     
@@ -214,17 +219,31 @@ else:
                                 m_df = year_data[year_data['월'] == m_num].copy()
                                 worked_dates = m_df[date_col].dt.date.unique().tolist()
                                 
-                                # ★ 해결: 야간연장 중복 제거 로직은 그대로 유지! ★
+                                # ★ 핵심 ★: 연장시간은 다른 시간이랑 절대 중복 안 되게 싹 다 빼주기!
                                 for idx in m_df.index:
-                                    if '연장시간' in m_df.columns and '야간연장근무' in m_df.columns:
+                                    if '연장시간' in m_df.columns:
                                         ot = pd.to_numeric(m_df.at[idx, '연장시간'], errors='coerce')
-                                        night_ot = pd.to_numeric(m_df.at[idx, '야간연장근무'], errors='coerce')
                                         
-                                        if pd.notna(ot) and pd.notna(night_ot) and night_ot > 0:
-                                            calc_ot = ot - night_ot
-                                            if calc_ot <= 0: m_df.at[idx, '연장시간'] = None
-                                            else: m_df.at[idx, '연장시간'] = calc_ot
+                                        # 빼야 할 다른 시간들 (조기출근, 점심근무, 야간연장근무) 불러오기
+                                        early = pd.to_numeric(m_df.at[idx, '조기출근'], errors='coerce') if '조기출근' in m_df.columns else 0
+                                        lunch = pd.to_numeric(m_df.at[idx, '점심근무'], errors='coerce') if '점심근무' in m_df.columns else 0
+                                        night = pd.to_numeric(m_df.at[idx, '야간연장근무'], errors='coerce') if '야간연장근무' in m_df.columns else 0
+                                        
+                                        e_val = early if pd.notna(early) else 0
+                                        l_val = lunch if pd.notna(lunch) else 0
+                                        n_val = night if pd.notna(night) else 0
+                                        
+                                        if pd.notna(ot):
+                                            # 공식: 연장시간 = 원래 연장시간 - 조기출근 - 점심근무 - 야간연장근무
+                                            calc_ot = ot - e_val - l_val - n_val
                                             
+                                            # 빼고 나서 0 이하가 되면 아예 빈칸으로 날려버림
+                                            if calc_ot <= 0:
+                                                m_df.at[idx, '연장시간'] = None
+                                            else:
+                                                m_df.at[idx, '연장시간'] = calc_ot
+                                                
+                                    # 덤으로 휴일연장근무도 휴일야간이랑 중복되면 빼주기
                                     if '휴일연장근무' in m_df.columns and '휴일야간연장근무' in m_df.columns:
                                         h_ot = pd.to_numeric(m_df.at[idx, '휴일연장근무'], errors='coerce')
                                         h_night_ot = pd.to_numeric(m_df.at[idx, '휴일야간연장근무'], errors='coerce')

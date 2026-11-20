@@ -49,7 +49,7 @@ st.markdown(f"<h3>{logo_html}코스맥스펫(주)</h3>", unsafe_allow_html=True)
 st.markdown("<h1>⏰ 개인별 연장근무 상세 조회</h1>", unsafe_allow_html=True)
 st.markdown("<br>", unsafe_allow_html=True)
 
-# 4. 수당 지급 기준 표
+# 4. 수당 지급 기준 표 (야간연장근로 산출식 명시)
 st.markdown("""
 <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 25px; margin: 20px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
     <h3 style="color: #004aad; font-size: 1.4rem !important; margin-bottom: 15px !important; text-align: left; font-weight: 900;">1. 수당 지급 기준</h3>
@@ -82,30 +82,24 @@ st.markdown("""
                 <td style="padding: 15px; border: 1px solid #cbd5e1; color: #334155; font-weight: 600;">
                     • 평일 연장근로 중 <b>야간(22:00~06:00)</b>에 해당하는 근무
                 </td>
-                <td style="padding: 15px; border: 1px solid #cbd5e1; color: #1e293b; font-weight: 700;">통상임금의 <span style="color: #ef4444;">200% (2.0배)</span></td>
+                <td style="padding: 15px; border: 1px solid #cbd5e1; color: #1e293b; font-weight: 700;">
+                    통상임금의 <span style="color: #ef4444; font-size: 1.1em;">200% (2.0배)</span><br>
+                    <span style="font-size: 0.85rem; color: #64748b; font-weight: 600;">※ 연장근로 1.5배 + 야간근로 0.5배 = 총 2.0배</span>
+                </td>
             </tr>
             <tr>
                 <td style="padding: 15px; border: 1px solid #cbd5e1; text-align: center; font-weight: 800; color: #1e293b; background-color: #fff;">휴일근로</td>
                 <td style="padding: 15px; border: 1px solid #cbd5e1; color: #334155; font-weight: 600;">
-                    • 주말, 법정 공휴일, 근로자의 날, <b>창립기념일</b> 근무
+                    • 주말, 법정 공휴일, 근로자의 날, <b>창립기념일(5/11)</b> 근무
                 </td>
                 <td style="padding: 15px; border: 1px solid #cbd5e1; color: #1e293b; font-weight: 700;">
                     • 8시간 이내: 통상임금의 <span style="color: #ef4444;">150%</span><br>
                     • 8시간 초과: 통상임금의 <span style="color: #ef4444;">200% (2배)</span>
                 </td>
             </tr>
-            <tr style="background-color: #f8fafc;">
-                <td style="padding: 15px; border: 1px solid #cbd5e1; text-align: center; font-weight: 800; color: #1e293b;">야간근로</td>
-                <td style="padding: 15px; border: 1px solid #cbd5e1; color: #334155; font-weight: 600;">
-                    • <b>밤 22:00 ~ 익일 아침 06:00 사이의 근무</b>
-                </td>
-                <td style="padding: 15px; border: 1px solid #cbd5e1; color: #1e293b; font-weight: 700;">
-                    • 기본 수당 외 추가 가산: <span style="color: #15803d;">+50% (0.5배)</span>
-                </td>
-            </tr>
         </tbody>
     </table>
-    <p style="margin-top: 12px; font-size: 0.95rem; color: #64748b; font-weight: 600;">※ 휴일근로는 8시간을 초과하면 '휴일+연장'이 중복되어 200%가 적용되며, 야간근로 시 추가 50%가 더 가산됩니다.</p>
+    <p style="margin-top: 12px; font-size: 0.95rem; color: #64748b; font-weight: 600;">※ 휴일근로는 8시간을 초과하면 '휴일+연장'이 중복되어 200%가 적용됩니다.</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -220,7 +214,7 @@ else:
                     user_data = user_data[user_data[date_col].apply(lambda d: True if pd.to_datetime(d, errors='coerce') is not pd.NaT else False)]
                     user_data[date_col] = pd.to_datetime(user_data[date_col])
                     user_data = user_data.dropna(subset=[date_col]).sort_values(by=date_col)
-                    user_data['휴일여부'] = user_data[date_col].apply(lambda d: True if d.dayofweek >= 5 or d.date() in kr_holidays else False)
+                    user_data['휴일여부'] = user_data[date_col].apply(lambda d: True if d.dayofweek >= 5 or d.date() in kr_holidays or (d.month == 5 and d.day == 11) else False)
                     user_data['년도'] = user_data[date_col].dt.year
                     user_data['월'] = user_data[date_col].dt.month
                     years = sorted(user_data['년도'].unique(), reverse=True)
@@ -295,7 +289,8 @@ else:
                                             else:
                                                 curr_date = datetime.date(selected_year, m_num, day)
                                                 is_worked = curr_date in worked_dates
-                                                classes = ["cal-sun"] if (j == 6 or curr_date in kr_holidays) else (["cal-sat"] if j == 5 else [""])
+                                                is_holiday_or_weekend = j >= 5 or curr_date in kr_holidays or (curr_date.month == 5 and curr_date.day == 11)
+                                                classes = ["cal-sun"] if (j == 6 or curr_date in kr_holidays or (curr_date.month == 5 and curr_date.day == 11)) else (["cal-sat"] if j == 5 else [""])
                                                 if is_worked: cal_html += f"<td><div class='cal-day cal-worked'>{day}</div></td>"
                                                 else: cal_html += f"<td><div class='cal-day {' '.join(classes)}'>{day}</div></td>"
                                         cal_html += "</tr>"

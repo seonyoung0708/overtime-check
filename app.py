@@ -49,7 +49,7 @@ st.markdown(f"<h3>{logo_html}코스맥스펫(주)</h3>", unsafe_allow_html=True)
 st.markdown("<h1>⏰ 개인별 연장근무 상세 조회</h1>", unsafe_allow_html=True)
 st.markdown("<br>", unsafe_allow_html=True)
 
-# 4. 수당 지급 기준 표 (괄호 문구 제거됨)
+# 4. 수당 지급 기준 표
 st.markdown("""
 <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 25px; margin: 20px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
     <h3 style="color: #004aad; font-size: 1.4rem !important; margin-bottom: 15px !important; text-align: left; font-weight: 900;">1. 수당 지급 기준</h3>
@@ -228,6 +228,47 @@ else:
                             with tabs[i]:
                                 m_df = year_data[year_data['월'] == m_num].copy()
                                 worked_dates = m_df[date_col].dt.date.unique().tolist()
+                                
+                                # =========================================================
+                                # 수정된 중복 차감 로직 (부동소수점 오류 방지)
+                                # =========================================================
+                                for idx in m_df.index:
+                                    if '연장시간' in m_df.columns:
+                                        ot = pd.to_numeric(m_df.at[idx, '연장시간'], errors='coerce')
+                                        e_val = pd.to_numeric(m_df.at[idx, '조기출근'], errors='coerce') if '조기출근' in m_df.columns else 0
+                                        l_val = pd.to_numeric(m_df.at[idx, '점심근무'], errors='coerce') if '점심근무' in m_df.columns else 0
+                                        n_val = pd.to_numeric(m_df.at[idx, '야간연장근무'], errors='coerce') if '야간연장근무' in m_df.columns else 0
+                                        h_val = pd.to_numeric(m_df.at[idx, '휴일근무'], errors='coerce') if '휴일근무' in m_df.columns else 0
+                                        hot_val = pd.to_numeric(m_df.at[idx, '휴일연장근무'], errors='coerce') if '휴일연장근무' in m_df.columns else 0
+                                        hnot_val = pd.to_numeric(m_df.at[idx, '휴일야간연장근무'], errors='coerce') if '휴일야간연장근무' in m_df.columns else 0
+                                        nw_val = pd.to_numeric(m_df.at[idx, '야간근무'], errors='coerce') if '야간근무' in m_df.columns else 0
+                                        
+                                        e_val = e_val if pd.notna(e_val) else 0
+                                        l_val = l_val if pd.notna(l_val) else 0
+                                        n_val = n_val if pd.notna(n_val) else 0
+                                        h_val = h_val if pd.notna(h_val) else 0
+                                        hot_val = hot_val if pd.notna(hot_val) else 0
+                                        hnot_val = hnot_val if pd.notna(hnot_val) else 0
+                                        nw_val = nw_val if pd.notna(nw_val) else 0
+                                        
+                                        if pd.notna(ot):
+                                            calc_ot = ot - (e_val + l_val + n_val + h_val + hot_val + hnot_val + nw_val)
+                                            if calc_ot <= 0.001:
+                                                m_df.at[idx, '연장시간'] = None
+                                            else:
+                                                m_df.at[idx, '연장시간'] = round(calc_ot, 2)
+                                                
+                                    if '휴일연장근무' in m_df.columns and '휴일야간연장근무' in m_df.columns:
+                                        h_ot = pd.to_numeric(m_df.at[idx, '휴일연장근무'], errors='coerce')
+                                        h_not = pd.to_numeric(m_df.at[idx, '휴일야간연장근무'], errors='coerce')
+                                        if pd.notna(h_ot) and pd.notna(h_not) and h_not > 0:
+                                            calc_h_ot = h_ot - h_not
+                                            if calc_h_ot <= 0.001:
+                                                m_df.at[idx, '휴일연장근무'] = None
+                                            else:
+                                                m_df.at[idx, '휴일연장근무'] = round(calc_h_ot, 2)
+                                # =========================================================
+
                                 keywords = ['조기출근', '점심근무', '연장시간', '야간연장근무', '휴일근무', '휴일연장근무', '휴일야간연장근무', '야간근무']
                                 time_cols = [kw for kw in keywords if kw in m_df.columns]
                                 m_total = m_df[time_cols].fillna(0).sum().sum()
@@ -254,9 +295,7 @@ else:
                                     box_html = f'<div class="summary-box-container"><div class="summary-box-1"><div style="font-size:1.15rem; color:#666;">📅 {m_num}월 발생 일수</div><div style="font-size:3.5rem; font-weight:900;">{len(m_df)}<span style="font-size:1.5rem;">건</span></div></div><div class="summary-box-2"><div style="font-size:1.15rem; color:rgba(255,255,255,0.9);">💰 {m_num}월 총 연장시간 합계</div><div style="font-size:3.8rem; font-weight:900;">{m_total:g}<span style="font-size:1.5rem;">시간</span></div></div></div>'
                                     st.markdown(box_html, unsafe_allow_html=True)
                                     
-                                    # =========================================================
-                                    # 항목별 배지 박스 (야간근무 0.5배 반영)
-                                    # =========================================================
+                                    # 배지 로직 (야간근무 0.5배 포함, 한 줄 렌더링)
                                     b_html = ""
                                     for kw in time_cols:
                                         if kw in ['조기출근', '점심근무', '연장시간', '휴일근무']:
@@ -265,14 +304,13 @@ else:
                                             badge = '<span style="display:block; font-size:0.8rem; font-weight:700; color:#b45309; background:#fef3c7; border-radius:4px; padding:2px 5px; margin-bottom:5px;">2.0배 (200%)</span>'
                                         elif kw == '휴일야간연장근무':
                                             badge = '<span style="display:block; font-size:0.8rem; font-weight:700; color:#b91c1c; background:#fee2e2; border-radius:4px; padding:2px 5px; margin-bottom:5px;">2.5배 (250%)</span>'
-                                        elif kw == '야간근무': # 야간근무 0.5배 추가
+                                        elif kw == '야간근무': 
                                             badge = '<span style="display:block; font-size:0.8rem; font-weight:700; color:#15803d; background:#dcfce7; border-radius:4px; padding:2px 5px; margin-bottom:5px;">0.5배 (50%)</span>'
                                         else: badge = ''
                                             
                                         val = m_df[kw].fillna(0).sum()
                                         b_html += f'<div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px; min-width:120px; text-align:center; display:flex; flex-direction:column; justify-content:center; align-items:center;">{badge}<div style="font-size:0.95rem; color:#64748b; font-weight:800;">{kw}</div><div style="font-size:1.4rem; font-weight:900; color:#1e293b; margin-top:3px;">{val:g}시간</div></div>'
                                     st.markdown(f'<div style="font-size:1.1rem; font-weight:900; margin-bottom:12px; color:#475569;">📊 항목별 연장 상세</div><div style="display:flex; flex-wrap:wrap; gap:12px;">{b_html}</div>', unsafe_allow_html=True)
-                                    # =========================================================
 
                                 st.markdown("<br>", unsafe_allow_html=True)
                                 display_cols = []

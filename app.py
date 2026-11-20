@@ -49,7 +49,7 @@ st.markdown(f"<h3>{logo_html}코스맥스펫(주)</h3>", unsafe_allow_html=True)
 st.markdown("<h1>⏰ 개인별 연장근무 상세 조회</h1>", unsafe_allow_html=True)
 st.markdown("<br>", unsafe_allow_html=True)
 
-# 4. 수당 지급 기준 표 (야간연장근로 추가 완료)
+# 4. 수당 지급 기준 표
 st.markdown("""
 <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 25px; margin: 20px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
     <h3 style="color: #004aad; font-size: 1.4rem !important; margin-bottom: 15px !important; text-align: left; font-weight: 900;">1. 수당 지급 기준</h3>
@@ -63,9 +63,16 @@ st.markdown("""
         </thead>
         <tbody>
             <tr>
+                <td style="padding: 15px; border: 1px solid #cbd5e1; text-align: center; font-weight: 800; color: #1e293b; background-color: #fff;">조기출근</td>
+                <td style="padding: 15px; border: 1px solid #cbd5e1; color: #334155; font-weight: 600;">
+                    • 평일 정규 근무시간(08:30) <b>이전에 조기 출근</b>하여 근무
+                </td>
+                <td style="padding: 15px; border: 1px solid #cbd5e1; color: #1e293b; font-weight: 700;">통상임금의 <span style="color: #ef4444;">150% (1.5배)</span></td>
+            </tr>
+            <tr>
                 <td style="padding: 15px; border: 1px solid #cbd5e1; text-align: center; font-weight: 800; color: #1e293b; background-color: #fff;">연장근로</td>
                 <td style="padding: 15px; border: 1px solid #cbd5e1; color: #334155; font-weight: 600;">
-                    • 평일 정규 근무시간(08:30~17:30) 외 근무<br>
+                    • 평일 정규 근무시간(17:30) 이후 근무<br>
                     • <b>점심 휴게시간(12:30~13:30) 중 근무</b>
                 </td>
                 <td style="padding: 15px; border: 1px solid #cbd5e1; color: #1e293b; font-weight: 700;">통상임금의 <span style="color: #ef4444;">150% (1.5배)</span></td>
@@ -80,16 +87,25 @@ st.markdown("""
             <tr>
                 <td style="padding: 15px; border: 1px solid #cbd5e1; text-align: center; font-weight: 800; color: #1e293b; background-color: #fff;">휴일근로</td>
                 <td style="padding: 15px; border: 1px solid #cbd5e1; color: #334155; font-weight: 600;">
-                    • 주말, 법정 공휴일, 근로자의 날 근무
+                    • 주말, 법정 공휴일, 근로자의 날, <b>창립기념일</b> 근무
                 </td>
                 <td style="padding: 15px; border: 1px solid #cbd5e1; color: #1e293b; font-weight: 700;">
                     • 8시간 이내: 통상임금의 <span style="color: #ef4444;">150%</span><br>
                     • 8시간 초과: 통상임금의 <span style="color: #ef4444;">200% (2배)</span>
                 </td>
             </tr>
+            <tr style="background-color: #f8fafc;">
+                <td style="padding: 15px; border: 1px solid #cbd5e1; text-align: center; font-weight: 800; color: #1e293b;">야간근로</td>
+                <td style="padding: 15px; border: 1px solid #cbd5e1; color: #334155; font-weight: 600;">
+                    • <b>밤 22:00 ~ 익일 아침 06:00 사이의 근무</b>
+                </td>
+                <td style="padding: 15px; border: 1px solid #cbd5e1; color: #1e293b; font-weight: 700;">
+                    • 기본 수당 외 추가 가산: <span style="color: #15803d;">+50% (0.5배)</span>
+                </td>
+            </tr>
         </tbody>
     </table>
-    <p style="margin-top: 12px; font-size: 0.95rem; color: #64748b; font-weight: 600;">※ 휴일근로는 8시간을 초과하면 '휴일+연장'이 중복되어 200%가 적용됩니다.</p>
+    <p style="margin-top: 12px; font-size: 0.95rem; color: #64748b; font-weight: 600;">※ 휴일근로는 8시간을 초과하면 '휴일+연장'이 중복되어 200%가 적용되며, 야간근로 시 추가 50%가 더 가산됩니다.</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -242,21 +258,13 @@ else:
                                         e_val = pd.to_numeric(m_df.at[idx, '조기출근'], errors='coerce') if '조기출근' in m_df.columns else 0
                                         l_val = pd.to_numeric(m_df.at[idx, '점심근무'], errors='coerce') if '점심근무' in m_df.columns else 0
                                         n_val = pd.to_numeric(m_df.at[idx, '야간연장근무'], errors='coerce') if '야간연장근무' in m_df.columns else 0
-                                        h_val = pd.to_numeric(m_df.at[idx, '휴일근무'], errors='coerce') if '휴일근무' in m_df.columns else 0
-                                        hot_val = pd.to_numeric(m_df.at[idx, '휴일연장근무'], errors='coerce') if '휴일연장근무' in m_df.columns else 0
-                                        hnot_val = pd.to_numeric(m_df.at[idx, '휴일야간연장근무'], errors='coerce') if '휴일야간연장근무' in m_df.columns else 0
-                                        nw_val = pd.to_numeric(m_df.at[idx, '야간근무'], errors='coerce') if '야간근무' in m_df.columns else 0
                                         
                                         e_val = e_val if pd.notna(e_val) else 0
                                         l_val = l_val if pd.notna(l_val) else 0
                                         n_val = n_val if pd.notna(n_val) else 0
-                                        h_val = h_val if pd.notna(h_val) else 0
-                                        hot_val = hot_val if pd.notna(hot_val) else 0
-                                        hnot_val = hnot_val if pd.notna(hnot_val) else 0
-                                        nw_val = nw_val if pd.notna(nw_val) else 0
                                         
                                         if pd.notna(ot):
-                                            calc_ot = ot - (e_val + l_val + n_val + h_val + hot_val + hnot_val + nw_val)
+                                            calc_ot = ot - (e_val + l_val + n_val)
                                             if calc_ot <= 0.001:
                                                 m_df.at[idx, '연장시간'] = None
                                             else:

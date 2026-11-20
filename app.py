@@ -47,11 +47,47 @@ st.markdown("""
 logo_html = "<span style='font-size: 2.0rem; vertical-align: middle; margin-right: 8px;'>🐾</span>" 
 st.markdown(f"<h3>{logo_html}코스맥스펫(주)</h3>", unsafe_allow_html=True)
 st.markdown("<h1>⏰ 개인별 연장근무 상세 조회</h1>", unsafe_allow_html=True)
-st.markdown("<br><br>", unsafe_allow_html=True)
+st.markdown("<br>", unsafe_allow_html=True)
 
-# 4. 데이터 처리 및 로그인
+# 4. 수당 지급 기준 표 (괄호 문구 제거됨)
+st.markdown("""
+<div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 25px; margin: 20px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+    <h3 style="color: #004aad; font-size: 1.4rem !important; margin-bottom: 15px !important; text-align: left; font-weight: 900;">1. 수당 지급 기준</h3>
+    <table style="width: 100%; border-collapse: collapse; background-color: white; border-radius: 8px; overflow: hidden; border: 1px solid #cbd5e1;">
+        <thead>
+            <tr style="background-color: #f1f5f9;">
+                <th style="padding: 15px; border: 1px solid #cbd5e1; width: 15%; text-align: center; color: #475569; font-weight: 800;">구분</th>
+                <th style="padding: 15px; border: 1px solid #cbd5e1; width: 45%; text-align: left; color: #475569; font-weight: 800;">발생 기준</th>
+                <th style="padding: 15px; border: 1px solid #cbd5e1; width: 40%; text-align: left; color: #475569; font-weight: 800;">수당 지급률</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td style="padding: 15px; border: 1px solid #cbd5e1; text-align: center; font-weight: 800; color: #1e293b; background-color: #fff;">연장근로</td>
+                <td style="padding: 15px; border: 1px solid #cbd5e1; color: #334155; font-weight: 600;">
+                    • 평일 정규 근무시간(08:30~17:30) 외 근무<br>
+                    • <b>점심 휴게시간(12:30~13:30) 중 근무</b>
+                </td>
+                <td style="padding: 15px; border: 1px solid #cbd5e1; color: #1e293b; font-weight: 700;">통상임금의 <span style="color: #ef4444;">150% (1.5배)</span></td>
+            </tr>
+            <tr>
+                <td style="padding: 15px; border: 1px solid #cbd5e1; text-align: center; font-weight: 800; color: #1e293b; background-color: #fff;">휴일근로</td>
+                <td style="padding: 15px; border: 1px solid #cbd5e1; color: #334155; font-weight: 600;">
+                    • 주말, 법정 공휴일, 근로자의 날 근무
+                </td>
+                <td style="padding: 15px; border: 1px solid #cbd5e1; color: #1e293b; font-weight: 700;">
+                    • 8시간 이내: 통상임금의 <span style="color: #ef4444;">150%</span><br>
+                    • 8시간 초과: 통상임금의 <span style="color: #ef4444;">200% (2배)</span>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+    <p style="margin-top: 12px; font-size: 0.95rem; color: #64748b; font-weight: 600;">※ 휴일근로는 8시간을 초과하면 '휴일+연장'이 중복되어 200%가 적용됩니다.</p>
+</div>
+""", unsafe_allow_html=True)
+
+# 5. 데이터 로드 및 초기 설정
 kr_holidays = holidays.KR()
-
 excel_files = [f for f in os.listdir('.') if f.endswith('.xlsx') and not f.startswith('~')]
 FILE_NAME = excel_files[0] if excel_files else None
 
@@ -61,7 +97,6 @@ def load_data(file_path):
     try:
         all_sheets = pd.read_excel(file_path, sheet_name=None, header=None)
         combined_df = pd.DataFrame()
-        
         for sheet_name, temp_df in all_sheets.items():
             if temp_df.empty: continue
             header_row = -1
@@ -73,7 +108,6 @@ def load_data(file_path):
             if header_row != -1:
                 df_part = pd.read_excel(file_path, sheet_name=sheet_name, header=header_row)
                 df_part.columns = [str(c).replace(" ", "").replace("\n", "").strip() for c in df_part.columns]
-                
                 merge_map = {
                     '연장시간': ['연장시간', '연장근무', '총연장시간', '총연장시간(일)'],
                     '휴일근무': ['휴일근무', '총휴일근무', '휴일시간'],
@@ -85,34 +119,26 @@ def load_data(file_path):
                         df_part[target] = df_part[present].apply(pd.to_numeric, errors='coerce').max(axis=1)
                         drops = [c for c in present if c != target]
                         if drops: df_part.drop(columns=drops, inplace=True)
-
                 mask_sum_any = df_part.astype(str).apply(lambda x: x.str.contains('합계|소계|총', na=False)).any(axis=1)
                 df_part = df_part[~mask_sum_any]
-                
                 ffill_cols = [c for c in df_part.columns if any(k in c for k in ['이름', '성명', '부서', '소속', '생년월일', '구분', '일자', '날짜', '근무일자'])]
                 for c in ffill_cols: df_part[c] = df_part[c].ffill()
-                
                 combined_df = pd.concat([combined_df, df_part], ignore_index=True)
-            
         if combined_df.empty: return None
-        
         def clean_h(val):
             if pd.isna(val): return val
             s = str(val).strip().lower()
             return float(s.replace('h', '').strip()) if s.endswith('h') else val
-            
         for c in combined_df.columns:
             if any(k in c for k in ['시간', '근무', '출근', '연장']):
                 combined_df[c] = combined_df[c].apply(clean_h)
                 combined_df[c] = pd.to_numeric(combined_df[c], errors='coerce')
-        
         if '생년월일' in combined_df.columns:
             def fmt_birth(x):
                 if isinstance(x, datetime.datetime): return x.strftime('%y%m%d')
                 s = str(x).split(' ')[0].replace('-', '').replace('.', '').replace('/', '').strip()
                 return s[2:] if len(s) == 8 else (s[-6:] if len(s) >= 6 else s.replace('.0','').zfill(6))
             combined_df['생년월일_검색용'] = combined_df['생년월일'].apply(fmt_birth)
-            
         return combined_df
     except: return None
 
@@ -148,7 +174,6 @@ else:
 
             search_name = input_name.replace(" ", "")
             search_birth = input_birth.replace(" ", "")
-            
             name_col = next((c for c in ['이름', '성명'] if c in df.columns), None)
             if name_col:
                 mask = df[name_col].astype(str).str.replace(" ", "").str.contains(search_name, na=False)
@@ -163,7 +188,6 @@ else:
             else:
                 date_col = next((c for c in ['일자', '날짜', '근무일자'] if c in user_data.columns), None)
                 if not date_col and 'Unnamed: 4' in user_data.columns: date_col = 'Unnamed: 4'
-                
                 if date_col:
                     def clean_date_val(d):
                         if pd.isna(d): return d
@@ -172,40 +196,25 @@ else:
                     user_data[date_col] = user_data[date_col].apply(clean_date_val)
                     user_data = user_data[user_data[date_col].apply(lambda d: True if pd.to_datetime(d, errors='coerce') is not pd.NaT else False)]
                     user_data[date_col] = pd.to_datetime(user_data[date_col])
-                    
-                    start_col = next((c for c in ['시작시간', '출근시간', '시작'] if c in user_data.columns), None)
-                    end_col = next((c for c in ['종료시간', '퇴근시간', '종료'] if c in user_data.columns), None)
-                    if start_col and end_col:
-                        mask_valid_rows = (user_data[start_col].astype(str).str.strip().replace('nan', '') != '') | \
-                                          (user_data[end_col].astype(str).str.strip().replace('nan', '') != '')
-                        user_data = user_data[mask_valid_rows]
-                    
-                    user_data = user_data.dropna(subset=[date_col])
-                    user_data = user_data.sort_values(by=date_col)
-                    
+                    user_data = user_data.dropna(subset=[date_col]).sort_values(by=date_col)
                     user_data['휴일여부'] = user_data[date_col].apply(lambda d: True if d.dayofweek >= 5 or d.date() in kr_holidays else False)
                     user_data['년도'] = user_data[date_col].dt.year
                     user_data['월'] = user_data[date_col].dt.month
-
                     years = sorted(user_data['년도'].unique(), reverse=True)
                     st.markdown("<hr style='margin:20px 0;'>", unsafe_allow_html=True)
                     selected_year = st.radio("📅 조회할 년도를 선택하세요:", years, horizontal=True)
-                    
                     year_data = user_data[user_data['년도'] == selected_year].copy()
                     months = sorted(year_data['월'].unique())
-                    
                     if not months:
                         st.info("해당 년도의 데이터가 없습니다.")
                     else:
                         tabs = st.tabs([f"{m}월" for m in months])
-
                         def fmt_num(v):
                             if pd.isna(v) or v == 0 or str(v).strip() in ["", "0", "0.0"]: return ""
                             try:
                                 f = float(v)
                                 return f"{int(f)}" if f.is_integer() else f"{f}"
                             except: return str(v)
-
                         def fmt_time(v):
                             if pd.isna(v) or str(v).strip() == "": return ""
                             try:
@@ -219,49 +228,8 @@ else:
                             with tabs[i]:
                                 m_df = year_data[year_data['월'] == m_num].copy()
                                 worked_dates = m_df[date_col].dt.date.unique().tolist()
-                                
-                                for idx in m_df.index:
-                                    if '연장시간' in m_df.columns:
-                                        ot = pd.to_numeric(m_df.at[idx, '연장시간'], errors='coerce')
-                                        
-                                        e_val = pd.to_numeric(m_df.at[idx, '조기출근'], errors='coerce') if '조기출근' in m_df.columns else 0
-                                        l_val = pd.to_numeric(m_df.at[idx, '점심근무'], errors='coerce') if '점심근무' in m_df.columns else 0
-                                        n_val = pd.to_numeric(m_df.at[idx, '야간연장근무'], errors='coerce') if '야간연장근무' in m_df.columns else 0
-                                        h_val = pd.to_numeric(m_df.at[idx, '휴일근무'], errors='coerce') if '휴일근무' in m_df.columns else 0
-                                        hot_val = pd.to_numeric(m_df.at[idx, '휴일연장근무'], errors='coerce') if '휴일연장근무' in m_df.columns else 0
-                                        hnot_val = pd.to_numeric(m_df.at[idx, '휴일야간연장근무'], errors='coerce') if '휴일야간연장근무' in m_df.columns else 0
-                                        nw_val = pd.to_numeric(m_df.at[idx, '야간근무'], errors='coerce') if '야간근무' in m_df.columns else 0
-                                        
-                                        e_val = e_val if pd.notna(e_val) else 0
-                                        l_val = l_val if pd.notna(l_val) else 0
-                                        n_val = n_val if pd.notna(n_val) else 0
-                                        h_val = h_val if pd.notna(h_val) else 0
-                                        hot_val = hot_val if pd.notna(hot_val) else 0
-                                        hnot_val = hnot_val if pd.notna(hnot_val) else 0
-                                        nw_val = nw_val if pd.notna(nw_val) else 0
-                                        
-                                        if pd.notna(ot):
-                                            calc_ot = ot - e_val - l_val - n_val - h_val - hot_val - hnot_val - nw_val
-                                            
-                                            if calc_ot <= 0:
-                                                m_df.at[idx, '연장시간'] = None
-                                            else:
-                                                m_df.at[idx, '연장시간'] = calc_ot
-                                                
-                                    if '휴일연장근무' in m_df.columns and '휴일야간연장근무' in m_df.columns:
-                                        h_ot = pd.to_numeric(m_df.at[idx, '휴일연장근무'], errors='coerce')
-                                        h_not = pd.to_numeric(m_df.at[idx, '휴일야간연장근무'], errors='coerce')
-                                        
-                                        if pd.notna(h_ot) and pd.notna(h_not) and h_not > 0:
-                                            calc_h_ot = h_ot - h_not
-                                            if calc_h_ot <= 0:
-                                                m_df.at[idx, '휴일연장근무'] = None
-                                            else:
-                                                m_df.at[idx, '휴일연장근무'] = calc_h_ot
-
                                 keywords = ['조기출근', '점심근무', '연장시간', '야간연장근무', '휴일근무', '휴일연장근무', '휴일야간연장근무', '야간근무']
                                 time_cols = [kw for kw in keywords if kw in m_df.columns]
-                                
                                 m_total = m_df[time_cols].fillna(0).sum().sum()
                                 
                                 col_cal, col_sum = st.columns([1, 2.5])
@@ -275,10 +243,7 @@ else:
                                             else:
                                                 curr_date = datetime.date(selected_year, m_num, day)
                                                 is_worked = curr_date in worked_dates
-                                                if j == 6 or curr_date in kr_holidays: classes = ["cal-sun"]
-                                                elif j == 5: classes = ["cal-sat"]
-                                                else: classes = [""]
-                                                    
+                                                classes = ["cal-sun"] if (j == 6 or curr_date in kr_holidays) else (["cal-sat"] if j == 5 else [""])
                                                 if is_worked: cal_html += f"<td><div class='cal-day cal-worked'>{day}</div></td>"
                                                 else: cal_html += f"<td><div class='cal-day {' '.join(classes)}'>{day}</div></td>"
                                         cal_html += "</tr>"
@@ -286,22 +251,11 @@ else:
                                     st.markdown(cal_html, unsafe_allow_html=True)
                                 
                                 with col_sum:
-                                    box_html = f"""
-                                    <div class="summary-box-container">
-                                        <div class="summary-box-1">
-                                            <div style="font-size:1.15rem; color:#666; margin-bottom:0px !important;">📅 {m_num}월 발생 일수</div>
-                                            <div style="font-size:3.5rem; font-weight:900; line-height:1.2;">{len(m_df)}<span style="font-size:1.5rem;">건</span></div>
-                                        </div>
-                                        <div class="summary-box-2">
-                                            <div style="font-size:1.15rem; color:rgba(255,255,255,0.9); margin-bottom:0px !important;">💰 {m_num}월 총 연장시간 합계</div>
-                                            <div style="font-size:3.8rem; font-weight:900; line-height:1.2;">{m_total:g}<span style="font-size:1.5rem;">시간</span></div>
-                                        </div>
-                                    </div>
-                                    """
+                                    box_html = f'<div class="summary-box-container"><div class="summary-box-1"><div style="font-size:1.15rem; color:#666;">📅 {m_num}월 발생 일수</div><div style="font-size:3.5rem; font-weight:900;">{len(m_df)}<span style="font-size:1.5rem;">건</span></div></div><div class="summary-box-2"><div style="font-size:1.15rem; color:rgba(255,255,255,0.9);">💰 {m_num}월 총 연장시간 합계</div><div style="font-size:3.8rem; font-weight:900;">{m_total:g}<span style="font-size:1.5rem;">시간</span></div></div></div>'
                                     st.markdown(box_html, unsafe_allow_html=True)
                                     
                                     # =========================================================
-                                    # 오류 수정된 항목별 배지 박스 (엔터 없이 한 줄로 렌더링)
+                                    # 항목별 배지 박스 (야간근무 0.5배 반영)
                                     # =========================================================
                                     b_html = ""
                                     for kw in time_cols:
@@ -311,37 +265,31 @@ else:
                                             badge = '<span style="display:block; font-size:0.8rem; font-weight:700; color:#b45309; background:#fef3c7; border-radius:4px; padding:2px 5px; margin-bottom:5px;">2.0배 (200%)</span>'
                                         elif kw == '휴일야간연장근무':
                                             badge = '<span style="display:block; font-size:0.8rem; font-weight:700; color:#b91c1c; background:#fee2e2; border-radius:4px; padding:2px 5px; margin-bottom:5px;">2.5배 (250%)</span>'
-                                        else:
-                                            badge = ''
+                                        elif kw == '야간근무': # 야간근무 0.5배 추가
+                                            badge = '<span style="display:block; font-size:0.8rem; font-weight:700; color:#15803d; background:#dcfce7; border-radius:4px; padding:2px 5px; margin-bottom:5px;">0.5배 (50%)</span>'
+                                        else: badge = ''
                                             
                                         val = m_df[kw].fillna(0).sum()
                                         b_html += f'<div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px; min-width:120px; text-align:center; display:flex; flex-direction:column; justify-content:center; align-items:center;">{badge}<div style="font-size:0.95rem; color:#64748b; font-weight:800;">{kw}</div><div style="font-size:1.4rem; font-weight:900; color:#1e293b; margin-top:3px;">{val:g}시간</div></div>'
-                                        
                                     st.markdown(f'<div style="font-size:1.1rem; font-weight:900; margin-bottom:12px; color:#475569;">📊 항목별 연장 상세</div><div style="display:flex; flex-wrap:wrap; gap:12px;">{b_html}</div>', unsafe_allow_html=True)
                                     # =========================================================
 
                                 st.markdown("<br>", unsafe_allow_html=True)
-                                
                                 display_cols = []
                                 for bc in ['이름', '성명', '일자', '근무일자', '시작시간', '종료시간']:
                                     c = next((col for col in m_df.columns if bc == str(col).strip()), None)
                                     if c: display_cols.append(c)
                                 display_cols.extend(time_cols)
-                                
                                 f_df = m_df[display_cols].copy()
                                 f_df[date_col] = m_df.apply(lambda r: f"{r[date_col].strftime('%Y-%m-%d')}" , axis=1)
-                                
                                 if '구분' not in f_df.columns: f_df.insert(0, '구분', '')
                                 f_df['구분'] = m_df['휴일여부'].apply(lambda is_holiday: '휴일근무' if is_holiday else '평일근무')
                                 f_df.insert(0, '순번', range(1, len(f_df) + 1))
-                                
                                 sum_row = {col: "" for col in f_df.columns}
                                 sum_row['순번'], sum_row['구분'] = "합계", f"{m_num}월 총합"
                                 for col in time_cols: sum_row[col] = f_df[col].fillna(0).sum()
                                 f_df = pd.concat([f_df, pd.DataFrame([sum_row])], ignore_index=True)
-
                                 for col in f_df.columns:
                                     if col in time_cols: f_df[col] = f_df[col].apply(fmt_num)
                                     elif '시간' in str(col): f_df[col] = f_df[col].apply(fmt_time)
-                                
                                 st.markdown(f_df.fillna("").to_html(index=False, escape=False).replace('<table border="1" class="dataframe">', '<table class="center-table">'), unsafe_allow_html=True)

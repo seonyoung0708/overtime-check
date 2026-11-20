@@ -49,9 +49,7 @@ st.markdown(f"<h3>{logo_html}코스맥스펫(주)</h3>", unsafe_allow_html=True)
 st.markdown("<h1>⏰ 개인별 연장근무 상세 조회</h1>", unsafe_allow_html=True)
 st.markdown("<br>", unsafe_allow_html=True)
 
-# =========================================================================
-# 4. 수당 지급 기준 표 (여기서부터)
-# =========================================================================
+# 4. 수당 지급 기준 표
 st.markdown("""
 <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 25px; margin: 20px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
     <h3 style="color: #004aad; font-size: 1.4rem !important; margin-bottom: 15px !important; text-align: left; font-weight: 900;">1. 수당 지급 기준 (150% 가산 적용)</h3>
@@ -87,9 +85,6 @@ st.markdown("""
     <p style="margin-top: 12px; font-size: 0.95rem; color: #64748b; font-weight: 600;">※ 휴일근로는 8시간을 초과하면 '휴일+연장'이 중복되어 200%가 적용됩니다.</p>
 </div>
 """, unsafe_allow_html=True)
-# =========================================================================
-# (여기까지)
-# =========================================================================
 
 # 5. 데이터 처리 및 로그인
 kr_holidays = holidays.KR()
@@ -343,7 +338,7 @@ else:
                                     st.markdown(box_html, unsafe_allow_html=True)
                                     
                                     # =========================================================
-                                    # 항목별 상세 박스 (여기에 배지 기능이 추가되었습니다!)
+                                    # 오류 수정된 항목별 배지 박스 (엔터 없이 한 줄로 렌더링)
                                     # =========================================================
                                     b_html = ""
                                     for kw in time_cols:
@@ -357,13 +352,9 @@ else:
                                             badge = ''
                                             
                                         val = m_df[kw].fillna(0).sum()
-                                        b_html += f'''
-                                        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px; min-width:120px; text-align:center; display:flex; flex-direction:column; justify-content:center; align-items:center;">
-                                            {badge}
-                                            <div style="font-size:0.95rem; color:#64748b; font-weight:800;">{kw}</div>
-                                            <div style="font-size:1.4rem; font-weight:900; color:#1e293b; margin-top:3px;">{val:g}시간</div>
-                                        </div>
-                                        '''
+                                        # 마크다운 코드 블록 오류를 방지하기 위해 띄어쓰기 없이 한 줄로 작성!
+                                        b_html += f'<div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px; min-width:120px; text-align:center; display:flex; flex-direction:column; justify-content:center; align-items:center;">{badge}<div style="font-size:0.95rem; color:#64748b; font-weight:800;">{kw}</div><div style="font-size:1.4rem; font-weight:900; color:#1e293b; margin-top:3px;">{val:g}시간</div></div>'
+                                        
                                     st.markdown(f'<div style="font-size:1.1rem; font-weight:900; margin-bottom:12px; color:#475569;">📊 항목별 연장 상세</div><div style="display:flex; flex-wrap:wrap; gap:12px;">{b_html}</div>', unsafe_allow_html=True)
                                     # =========================================================
 

@@ -49,7 +49,7 @@ st.markdown(f"<h3>{logo_html}코스맥스펫(주)</h3>", unsafe_allow_html=True)
 st.markdown("<h1>⏰ 개인별 연장근무 상세 조회</h1>", unsafe_allow_html=True)
 st.markdown("<br>", unsafe_allow_html=True)
 
-# 4. 수당 지급 기준 표
+# 4. 수당 지급 기준 표 (야간연장근로 추가 완료)
 st.markdown("""
 <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 25px; margin: 20px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
     <h3 style="color: #004aad; font-size: 1.4rem !important; margin-bottom: 15px !important; text-align: left; font-weight: 900;">1. 수당 지급 기준</h3>
@@ -69,6 +69,13 @@ st.markdown("""
                     • <b>점심 휴게시간(12:30~13:30) 중 근무</b>
                 </td>
                 <td style="padding: 15px; border: 1px solid #cbd5e1; color: #1e293b; font-weight: 700;">통상임금의 <span style="color: #ef4444;">150% (1.5배)</span></td>
+            </tr>
+            <tr>
+                <td style="padding: 15px; border: 1px solid #cbd5e1; text-align: center; font-weight: 800; color: #1e293b; background-color: #fff;">야간연장근로</td>
+                <td style="padding: 15px; border: 1px solid #cbd5e1; color: #334155; font-weight: 600;">
+                    • 평일 연장근로 중 <b>야간(22:00~06:00)</b>에 해당하는 근무
+                </td>
+                <td style="padding: 15px; border: 1px solid #cbd5e1; color: #1e293b; font-weight: 700;">통상임금의 <span style="color: #ef4444;">200% (2.0배)</span></td>
             </tr>
             <tr>
                 <td style="padding: 15px; border: 1px solid #cbd5e1; text-align: center; font-weight: 800; color: #1e293b; background-color: #fff;">휴일근로</td>
@@ -229,9 +236,6 @@ else:
                                 m_df = year_data[year_data['월'] == m_num].copy()
                                 worked_dates = m_df[date_col].dt.date.unique().tolist()
                                 
-                                # =========================================================
-                                # 수정된 중복 차감 로직 (부동소수점 오류 방지)
-                                # =========================================================
                                 for idx in m_df.index:
                                     if '연장시간' in m_df.columns:
                                         ot = pd.to_numeric(m_df.at[idx, '연장시간'], errors='coerce')
@@ -267,7 +271,6 @@ else:
                                                 m_df.at[idx, '휴일연장근무'] = None
                                             else:
                                                 m_df.at[idx, '휴일연장근무'] = round(calc_h_ot, 2)
-                                # =========================================================
 
                                 keywords = ['조기출근', '점심근무', '연장시간', '야간연장근무', '휴일근무', '휴일연장근무', '휴일야간연장근무', '야간근무']
                                 time_cols = [kw for kw in keywords if kw in m_df.columns]
@@ -295,7 +298,6 @@ else:
                                     box_html = f'<div class="summary-box-container"><div class="summary-box-1"><div style="font-size:1.15rem; color:#666;">📅 {m_num}월 발생 일수</div><div style="font-size:3.5rem; font-weight:900;">{len(m_df)}<span style="font-size:1.5rem;">건</span></div></div><div class="summary-box-2"><div style="font-size:1.15rem; color:rgba(255,255,255,0.9);">💰 {m_num}월 총 연장시간 합계</div><div style="font-size:3.8rem; font-weight:900;">{m_total:g}<span style="font-size:1.5rem;">시간</span></div></div></div>'
                                     st.markdown(box_html, unsafe_allow_html=True)
                                     
-                                    # 배지 로직 (야간근무 0.5배 포함, 한 줄 렌더링)
                                     b_html = ""
                                     for kw in time_cols:
                                         if kw in ['조기출근', '점심근무', '연장시간', '휴일근무']:

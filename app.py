@@ -49,7 +49,7 @@ st.markdown(f"<h3>{logo_html}코스맥스펫(주)</h3>", unsafe_allow_html=True)
 st.markdown("<h1>⏰ 개인별 연장근무 상세 조회</h1>", unsafe_allow_html=True)
 st.markdown("<br>", unsafe_allow_html=True)
 
-# 4. 수당 지급 기준 표 (야간연장근로 산출식 명시)
+# 4. 수당 지급 기준 표
 st.markdown("""
 <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 25px; margin: 20px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
     <h3 style="color: #004aad; font-size: 1.4rem !important; margin-bottom: 15px !important; text-align: left; font-weight: 900;">1. 수당 지급 기준</h3>
@@ -67,7 +67,7 @@ st.markdown("""
                 <td style="padding: 15px; border: 1px solid #cbd5e1; color: #334155; font-weight: 600;">
                     • 평일 정규 근무시간(08:30) <b>이전에 조기 출근</b>하여 근무
                 </td>
-                <td style="padding: 15px; border: 1px solid #cbd5e1; color: #1e293b; font-weight: 700;">통상임금의 <span style="color: #ef4444;">150% (1.5배)</span></td>
+                <td style="padding: 15px; border: 1px solid #cbd5e1; color: #1e293b; font-weight: 700;">통상시급의 <span style="color: #ef4444;">150% (1.5배)</span></td>
             </tr>
             <tr>
                 <td style="padding: 15px; border: 1px solid #cbd5e1; text-align: center; font-weight: 800; color: #1e293b; background-color: #fff;">연장근로</td>
@@ -75,7 +75,7 @@ st.markdown("""
                     • 평일 정규 근무시간(17:30) 이후 근무<br>
                     • <b>점심 휴게시간(12:30~13:30) 중 근무</b>
                 </td>
-                <td style="padding: 15px; border: 1px solid #cbd5e1; color: #1e293b; font-weight: 700;">통상임금의 <span style="color: #ef4444;">150% (1.5배)</span></td>
+                <td style="padding: 15px; border: 1px solid #cbd5e1; color: #1e293b; font-weight: 700;">통상시급의 <span style="color: #ef4444;">150% (1.5배)</span></td>
             </tr>
             <tr>
                 <td style="padding: 15px; border: 1px solid #cbd5e1; text-align: center; font-weight: 800; color: #1e293b; background-color: #fff;">야간연장근로</td>
@@ -83,8 +83,8 @@ st.markdown("""
                     • 평일 연장근로 중 <b>야간(22:00~06:00)</b>에 해당하는 근무
                 </td>
                 <td style="padding: 15px; border: 1px solid #cbd5e1; color: #1e293b; font-weight: 700;">
-                    통상임금의 <span style="color: #ef4444; font-size: 1.1em;">200% (2.0배)</span><br>
-                    <span style="font-size: 0.85rem; color: #64748b; font-weight: 600;">※ 연장근로 1.5배 + 야간근로 0.5배 = 총 2.0배</span>
+                    <span style="font-size: 0.9rem; color: #64748b;">※ 연장근로 1.5배 + 야간근로 0.5배</span><br>
+                    통상시급의 <span style="color: #ef4444; font-size: 1.1em;">200% (2.0배)</span>
                 </td>
             </tr>
             <tr>
@@ -93,8 +93,8 @@ st.markdown("""
                     • 주말, 법정 공휴일, 근로자의 날, <b>창립기념일(5/11)</b> 근무
                 </td>
                 <td style="padding: 15px; border: 1px solid #cbd5e1; color: #1e293b; font-weight: 700;">
-                    • 8시간 이내: 통상임금의 <span style="color: #ef4444;">150%</span><br>
-                    • 8시간 초과: 통상임금의 <span style="color: #ef4444;">200% (2배)</span>
+                    • 8시간 이내: 통상시급의 <span style="color: #ef4444;">150%</span><br>
+                    • 8시간 초과: 통상시급의 <span style="color: #ef4444;">200% (2배)</span>
                 </td>
             </tr>
         </tbody>
@@ -289,8 +289,8 @@ else:
                                             else:
                                                 curr_date = datetime.date(selected_year, m_num, day)
                                                 is_worked = curr_date in worked_dates
-                                                is_holiday_or_weekend = j >= 5 or curr_date in kr_holidays or (curr_date.month == 5 and curr_date.day == 11)
-                                                classes = ["cal-sun"] if (j == 6 or curr_date in kr_holidays or (curr_date.month == 5 and curr_date.day == 11)) else (["cal-sat"] if j == 5 else [""])
+                                                is_holiday_cal = (j == 6 or curr_date in kr_holidays or (curr_date.month == 5 and curr_date.day == 11))
+                                                classes = ["cal-sun"] if is_holiday_cal else (["cal-sat"] if j == 5 else [""])
                                                 if is_worked: cal_html += f"<td><div class='cal-day cal-worked'>{day}</div></td>"
                                                 else: cal_html += f"<td><div class='cal-day {' '.join(classes)}'>{day}</div></td>"
                                         cal_html += "</tr>"
@@ -309,8 +309,6 @@ else:
                                             badge = '<span style="display:block; font-size:0.8rem; font-weight:700; color:#b45309; background:#fef3c7; border-radius:4px; padding:2px 5px; margin-bottom:5px;">2.0배 (200%)</span>'
                                         elif kw == '휴일야간연장근무':
                                             badge = '<span style="display:block; font-size:0.8rem; font-weight:700; color:#b91c1c; background:#fee2e2; border-radius:4px; padding:2px 5px; margin-bottom:5px;">2.5배 (250%)</span>'
-                                        elif kw == '야간근무': 
-                                            badge = '<span style="display:block; font-size:0.8rem; font-weight:700; color:#15803d; background:#dcfce7; border-radius:4px; padding:2px 5px; margin-bottom:5px;">0.5배 (50%)</span>'
                                         else: badge = ''
                                             
                                         val = m_df[kw].fillna(0).sum()
@@ -325,8 +323,7 @@ else:
                                 display_cols.extend(time_cols)
                                 f_df = m_df[display_cols].copy()
                                 f_df[date_col] = m_df.apply(lambda r: f"{r[date_col].strftime('%Y-%m-%d')}" , axis=1)
-                                if '구분' not in f_df.columns: f_df.insert(0, '구분', '')
-                                f_df['구분'] = m_df['휴일여부'].apply(lambda is_holiday: '휴일근무' if is_holiday else '평일근무')
+                                f_df.insert(0, '구분', m_df['휴일여부'].apply(lambda is_holiday: '휴일근무' if is_holiday else '평일근무'))
                                 f_df.insert(0, '순번', range(1, len(f_df) + 1))
                                 sum_row = {col: "" for col in f_df.columns}
                                 sum_row['순번'], sum_row['구분'] = "합계", f"{m_num}월 총합"

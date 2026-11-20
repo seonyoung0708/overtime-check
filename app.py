@@ -274,8 +274,11 @@ else:
                                             else:
                                                 m_df.at[idx, '휴일연장근무'] = round(calc_h_ot, 2)
 
-                                keywords = ['조기출근', '점심근무', '연장시간', '야간연장근무', '휴일근무', '휴일연장근무', '휴일야간연장근무', '야간근무']
-                                time_cols = [kw for kw in keywords if kw in m_df.columns]
+                                # 💡 '야간근무'를 제외하고 표시할 컬럼 목록 명확히 지정 (중복 방지)
+                                keywords = ['조기출근', '점심근무', '연장시간', '야간연장근무', '휴일근무', '휴일연장근무', '휴일야간연장근무']
+                                # 엑셀 컬럼 이름과 겹쳐서 중복 생성되지 않도록 dict.fromkeys()를 사용해 순서를 유지하며 중복 제거
+                                time_cols = list(dict.fromkeys([kw for kw in keywords if kw in m_df.columns]))
+                                
                                 m_total = m_df[time_cols].fillna(0).sum().sum()
                                 
                                 col_cal, col_sum = st.columns([1, 2.5])
@@ -316,19 +319,28 @@ else:
                                     st.markdown(f'<div style="font-size:1.1rem; font-weight:900; margin-bottom:12px; color:#475569;">📊 항목별 연장 상세</div><div style="display:flex; flex-wrap:wrap; gap:12px;">{b_html}</div>', unsafe_allow_html=True)
 
                                 st.markdown("<br>", unsafe_allow_html=True)
+                                
+                                # 💡 표에 표시할 컬럼 중복 방지 로직
                                 display_cols = []
                                 for bc in ['이름', '성명', '일자', '근무일자', '시작시간', '종료시간']:
                                     c = next((col for col in m_df.columns if bc == str(col).strip()), None)
-                                    if c: display_cols.append(c)
-                                display_cols.extend(time_cols)
+                                    if c and c not in display_cols: 
+                                        display_cols.append(c)
+                                        
+                                for c in time_cols:
+                                    if c not in display_cols:
+                                        display_cols.append(c)
+                                        
                                 f_df = m_df[display_cols].copy()
                                 f_df[date_col] = m_df.apply(lambda r: f"{r[date_col].strftime('%Y-%m-%d')}" , axis=1)
                                 f_df.insert(0, '구분', m_df['휴일여부'].apply(lambda is_holiday: '휴일근무' if is_holiday else '평일근무'))
                                 f_df.insert(0, '순번', range(1, len(f_df) + 1))
+                                
                                 sum_row = {col: "" for col in f_df.columns}
                                 sum_row['순번'], sum_row['구분'] = "합계", f"{m_num}월 총합"
                                 for col in time_cols: sum_row[col] = f_df[col].fillna(0).sum()
                                 f_df = pd.concat([f_df, pd.DataFrame([sum_row])], ignore_index=True)
+                                
                                 for col in f_df.columns:
                                     if col in time_cols: f_df[col] = f_df[col].apply(fmt_num)
                                     elif '시간' in str(col): f_df[col] = f_df[col].apply(fmt_time)
